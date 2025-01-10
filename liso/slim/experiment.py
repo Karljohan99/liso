@@ -488,7 +488,10 @@ class Experiment:
             "metrics_eval": self.global_step % 100 == 0 or self.debug_mode,
             "aggregated_metrics": False,
         }
+
+        print("TRAIN SUMMARIES")
         train_iterator = iter(self.train_loader)
+        print("TRAIN ITERATOR")
         while self.global_step < self.slim_cfg.iterations.train:
             print(self.global_step, self.slim_cfg.iterations.train)
             self.optimizer.zero_grad()
