@@ -490,6 +490,7 @@ class Experiment:
         }
 
         print("TRAIN SUMMARIES")
+        print(self.train_loader)
         train_iterator = iter(self.train_loader)
         print("TRAIN ITERATOR")
         while self.global_step < self.slim_cfg.iterations.train:

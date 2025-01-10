@@ -13,6 +13,8 @@ def main():
     assert torch.cuda.is_available(), "CPU only not supported"
     log_dir_prefix = None
 
+    torch.multiprocessing.set_start_method("spawn")
+
     args = parse_cli_args()
     if args.override_summary_dir:
         args, cfg, maybe_slow_log_dir = load_handle_args_cfg_logdir(
