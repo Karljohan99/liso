@@ -201,6 +201,7 @@ class Experiment:
         self.model.cuda()
 
         if for_training:
+            print("SETTING OPTIMIZER")
             if self.slim_cfg.optimizer == "rmsprop":
                 self.optimizer = torch.optim.RMSprop(
                     self.model.parameters(),
@@ -214,6 +215,7 @@ class Experiment:
             else:
                 raise AssertionError("only rmsprop/adam supported")
 
+            print("LR SCHEDULER")
             self.lr_scheduler = get_polynomial_decay_schedule_with_warmup(
                 optimizer=self.optimizer,
                 num_warmup_steps=self.slim_cfg.learning_rate.warm_up.step_length,
