@@ -222,6 +222,7 @@ class Experiment:
                 num_training_steps=self.slim_cfg.iterations.train,
                 lr_end=self.slim_cfg.learning_rate.initial * 0.05,
             )
+        print("END_OF_PREPARE")
 
     def load_model_weights(self, path_to_weights: Path):
         print("LOADING MODEL WEIGHTS")
@@ -478,6 +479,7 @@ class Experiment:
 
     def run(self):
         self.model.train()
+        print("MODEL IN TRAINING MODE")
 
         train_writer = self.tb_factory("train", self.cfg.data.source + "/")
         train_summaries = {
@@ -488,12 +490,15 @@ class Experiment:
         }
         train_iterator = iter(self.train_loader)
         while self.global_step < self.slim_cfg.iterations.train:
+            print(self.global_step, self.slim_cfg.iterations.train)
             self.optimizer.zero_grad()
             try:
                 full_train_data = next(train_iterator)
+                print("FULL TRAIN DATA")
             except StopIteration:
                 train_iterator = iter(self.train_loader)
                 full_train_data = next(train_iterator)
+                print("STOP ITERAION")
             (
                 sample_data_t0,
                 sample_data_t1,
@@ -509,7 +514,7 @@ class Experiment:
             #     monitor_input_output_data(train_writer, train_el, pred_fw)
             if self.debug_mode or (
                 (self.global_step % self.cfg.logging.img_log_interval) == 0
-            ):
+            ): # logging
                 log_flow_image(
                     train_writer,
                     self.cfg,
@@ -539,7 +544,7 @@ class Experiment:
             if (
                 self.global_step % self.slim_cfg.iterations.full_eval_every == 0
                 or self.debug_mode
-            ):
+            ): # evaluation
                 max_train_eval_iter = self.cfg.validation.num_val_on_train_steps
                 max_val_eval_iter = self.cfg.validation.num_val_steps
                 if self.debug_mode:
