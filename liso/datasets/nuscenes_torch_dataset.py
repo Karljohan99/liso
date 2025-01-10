@@ -616,7 +616,6 @@ def get_nuscenes_train_dataset(
 
         extra_loader_kwargs["sampler"] = weighted_random_sampler
 
-    print(cfg.data.batch_size, cfg.data.num_workers, extra_loader_kwargs)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         pin_memory=True,

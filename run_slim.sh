@@ -12,8 +12,8 @@
 #SBATCH --ntasks-per-node=1
 
 # The maximum walltime of the job is 5 minutes
-#SBATCH -t 01:00:00
-#SBATCH --mem=316G
+#SBATCH -t 1-00:00:00
+#SBATCH --mem=16G
 
 # Keep this line if you need a GPU for your job
 #SBATCH --partition=gpu
@@ -27,8 +27,6 @@
 #SBATCH --mail-user=karljohan30@gmail.com
 
 #SBATCH -A "bolt"
-
-CUDA_HOME="/gpfs/space/software/cluster_software/spack/linux-centos7-x86_64/gcc-9.2.0/cuda-11.3.1-oqzddj7nezymwww6ennwec7qb6kktktw"
 
 module load singularity
 

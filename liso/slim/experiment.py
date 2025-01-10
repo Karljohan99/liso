@@ -66,7 +66,13 @@ def list_of_dicts_to_dict_of_lists(in_list):
                 out_dict[k].append(v)
 
         return out_dict
-
+    
+def progress_bar(message, current, total, bar_length=20):
+    fraction = current / total
+    arrow = int(fraction * bar_length - 1) * '-' + '>'
+    padding = int(bar_length - len(arrow)) * ' '
+    ending = '\n' if current == total else '\r'
+    print(f'{message}: [{arrow}{padding}] {int(fraction*100)}%', end=ending)
 
 class Experiment:
     def __init__(
@@ -191,8 +197,6 @@ class Experiment:
         else:
             num_train_samples = 15000  # TODO: this should not be necessary, we will overwrite moving threshold anyway during loading of model weights
 
-        print("BUILDING MODEL")
-
         self.mask_gt_renderer = RecursiveDeviceMover(self.cfg).cuda()
         self.model = SLIM(
             cfg=self.cfg,
@@ -201,7 +205,6 @@ class Experiment:
         self.model.cuda()
 
         if for_training:
-            print("SETTING OPTIMIZER")
             if self.slim_cfg.optimizer == "rmsprop":
                 self.optimizer = torch.optim.RMSprop(
                     self.model.parameters(),
@@ -215,17 +218,14 @@ class Experiment:
             else:
                 raise AssertionError("only rmsprop/adam supported")
 
-            print("LR SCHEDULER")
             self.lr_scheduler = get_polynomial_decay_schedule_with_warmup(
                 optimizer=self.optimizer,
                 num_warmup_steps=self.slim_cfg.learning_rate.warm_up.step_length,
                 num_training_steps=self.slim_cfg.iterations.train,
                 lr_end=self.slim_cfg.learning_rate.initial * 0.05,
             )
-        print("END_OF_PREPARE")
 
     def load_model_weights(self, path_to_weights: Path):
-        print("LOADING MODEL WEIGHTS")
         self.model.load_state_dict(torch.load(path_to_weights))
         self.path_to_loaded_model_weights = path_to_weights
 
@@ -479,7 +479,6 @@ class Experiment:
 
     def run(self):
         self.model.train()
-        print("MODEL IN TRAINING MODE")
 
         train_writer = self.tb_factory("train", self.cfg.data.source + "/")
         train_summaries = {
@@ -489,20 +488,15 @@ class Experiment:
             "aggregated_metrics": False,
         }
 
-        print("TRAIN SUMMARIES")
-        print(self.train_loader)
         train_iterator = iter(self.train_loader)
-        print("TRAIN ITERATOR")
         while self.global_step < self.slim_cfg.iterations.train:
-            print(self.global_step, self.slim_cfg.iterations.train)
+            progress_bar("TRAINING:", self.global_step, self.slim_cfg.iterations.train)
             self.optimizer.zero_grad()
             try:
                 full_train_data = next(train_iterator)
-                print("FULL TRAIN DATA")
             except StopIteration:
                 train_iterator = iter(self.train_loader)
                 full_train_data = next(train_iterator)
-                print("STOP ITERAION")
             (
                 sample_data_t0,
                 sample_data_t1,
