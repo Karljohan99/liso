@@ -1,0 +1,8 @@
+setup.py
+nuscenes/__init__.py
+nuscenes/nuscenes.py
+nuscenes_devkit.egg-info/PKG-INFO
+nuscenes_devkit.egg-info/SOURCES.txt
+nuscenes_devkit.egg-info/dependency_links.txt
+nuscenes_devkit.egg-info/not-zip-safe
+nuscenes_devkit.egg-info/top_level.txt

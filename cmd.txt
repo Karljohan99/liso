@@ -1,0 +1,6 @@
+docker image save -o liso_dev.tar liso_dev
+scp liso_dev.tar pilve@rocket.hpc.ut.ee:liso/liso_tartu.tar
+
+
+python create.py --nusc_root ~/workspace/liflow2/liso/data/nuscenes --target_dir ~/workspace/liflow2/liso/data/nuscenes_prep
+python3 liso/slim/cli.py --summary-dir ~/workspace/liflow2/liso/data/train_slim/first_train -c slim_simple_knn_training slim_nuscenes use_lidar_intensity slim_RAFT batch_size_one slim_highest_resolution
