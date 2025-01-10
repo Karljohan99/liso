@@ -490,7 +490,8 @@ class Experiment:
 
         train_iterator = iter(self.train_loader)
         while self.global_step < self.slim_cfg.iterations.train:
-            progress_bar("TRAINING:", self.global_step, self.slim_cfg.iterations.train)
+            progress_bar(f"TRAINING (interation {self.global_step} of {self.slim_cfg.iterations.train}):", 
+                         self.global_step, self.slim_cfg.iterations.train)
             self.optimizer.zero_grad()
             try:
                 full_train_data = next(train_iterator)
