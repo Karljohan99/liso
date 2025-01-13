@@ -81,7 +81,7 @@ default:
         pure_dataset_root:
           local: "/gpfs/helios/home/pilve/liso/data/nuscenes"
         box_dbs:
-          local: "/mnt/LISO_DATA_DIR/selfsupervised_OD/mined_dbs/nuscenes"
+          local: "/gpfs/helios/home/pilve/liso/data/train_liso/first_train/mined_dbs"
         slim_flow:
           slim_bev_120m:
             local: "/gpfs/helios/home/pilve/liso/data/train_slim/first_inference/4cf6b/20250113_100359/preds"
