@@ -84,7 +84,7 @@ default:
           local: "/mnt/LISO_DATA_DIR/selfsupervised_OD/mined_dbs/nuscenes"
         slim_flow:
           slim_bev_120m:
-            local: "/mnt/LISO_DATA_DIR/flow_slim/nuscenes_inference_920/6762e/20230404_192005/preds"
+            local: "/gpfs/helios/home/pilve/liso/data/train_slim/first_inference/4cf6b/20250113_100359/preds"
       waymo:
         local: "/mnt/LISO_DATA_DIR/selfsupervised_OD/waymo"
         ground_segmentation:

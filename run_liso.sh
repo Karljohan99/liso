@@ -1,6 +1,6 @@
 #!/bin/bash
 # The name of the job
-#SBATCH -J train_slim
+#SBATCH -J train_liso
 
 # Format of the output filename: slurm-jobname.jobid.out
 #SBATCH --output=slurm-%x.%j.out
@@ -30,4 +30,4 @@
 
 module load singularity
 
-singularity run --nv ${HOME}/liso/liso_dev.sif ${HOME}/liso/train_slim.bash
+singularity run --nv ${HOME}/liso/liso_dev.sif ${HOME}/liso/train_liso.bash
