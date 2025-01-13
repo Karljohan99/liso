@@ -28,7 +28,7 @@ def calc_ap(precisions, min_recall: float, min_precision: float) -> float:
     assert 0 <= min_precision < 1
     assert 0 <= min_recall <= 1
 
-    print("PECISIONS", precisions)
+    print("PRECISIONS", precisions)
     prec = np.copy(precisions)
     print("MIN RECALL", min_recall)
     if min_recall != 0.0:
