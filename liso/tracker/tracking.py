@@ -167,6 +167,7 @@ def main():
         exp_desc = f"{cfg.data.flow_source}_flow_{exp_desc}"
 
     if args.export_predictions_to_dir:
+        print(args.export_predictions_to_dir)
         export_raw_tracked_detections_to = (
             Path(args.export_predictions_to_dir) / exp_desc
         )
