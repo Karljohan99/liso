@@ -146,8 +146,8 @@ def generate_point_lines_on_box_borders(
     )
     center_line_front = torch.cat(
         [
-            coords_along_x[num_pts_per_line // 2 :, None],
-            torch.zeros_like(coords_along_x[num_pts_per_line // 2 :])[..., None],
+            coords_along_x[torch.div(num_pts_per_line, 2, rounding_mode='floor') :, None],
+            torch.zeros_like(coords_along_x[torch.div(num_pts_per_line, 2, rounding_mode='floor') :])[..., None],
         ],
         dim=-1,
     )

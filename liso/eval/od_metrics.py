@@ -35,6 +35,7 @@ def calc_ap(precisions, min_recall: float, min_precision: float) -> float:
         round(100 * min_recall) + 1 :
     ]  # Clip low recalls. +1 to exclude the min recall bin.
     prec -= min_precision  # Clip low precision
+    print("PREC", prec)
     prec[prec < 0] = 0
     return float(np.mean(prec)) / (1.0 - min_precision)
 
