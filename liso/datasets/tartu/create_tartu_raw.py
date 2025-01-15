@@ -91,7 +91,7 @@ def main():
 
     target_dir = args.target_dir / "tartu_raw"
 
-    target_dir.mkdir(parents=True, exist_ok=True)
+    #target_dir.mkdir(parents=True, exist_ok=True)
 
     dates = sorted(os.listdir(args.tartu_raw_root))
 
