@@ -105,7 +105,7 @@ def main():
     success = 0
     for date in tqdm(dates):
         if not os.path.isdir(Path(args.tartu_raw_root) / date):
-            print(os.path.isdir(Path(args.tartu_raw_root) / date))
+            print("Not a directory:", Path(args.tartu_raw_root) / date)
             continue
         
         lidar_data = Path(args.tartu_raw_root) / date / "lidar_center"
