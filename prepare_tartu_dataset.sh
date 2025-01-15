@@ -23,4 +23,4 @@
 
 module load singularity
 
-singularity run --nv ${HOME}/liso/liso_dev.sif ${HOME}/liso/liso/datasets/tartu/prepare_tartu_data.bash
+singularity run --nv ${HOME}/liso/liso_dev.sif ${HOME}/liso/prepare_tartu_data.bash
