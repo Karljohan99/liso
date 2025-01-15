@@ -27,6 +27,11 @@ from liso.datasets.waymo_torch_dataset import (
     get_waymo_train_dataset,
     get_waymo_val_dataset,
 )
+from liso.datasets.tartu_raw_torch_dataset import (
+    TartuRawDataset,
+    get_tartu_train_dataset,
+    get_tartu_val_dataset,
+)
 from liso.eval.flow_metrics import FlowMetrics
 from liso.kabsch.shape_utils import Shape
 from liso.losses.hungarian_matching_loss import hungarian_matching_loss
@@ -457,9 +462,41 @@ def get_datasets(
         val_loader, _ = get_kitti_val_dataset(
             cfg, size=None, target=target, shuffle=shuffle_validation
         )
+    elif cfg.data.source == "tartu":
+        train_loader, train_dataset = get_tartu_train_dataset(
+            cfg,
+            use_geom_augmentation=cfg.data.augmentation.active,
+            use_skip_frames=cfg.data.use_skip_frames,
+            path_to_augmentation_db=path_to_augmentation_db,
+            path_to_mined_boxes_db=path_to_mined_boxes_db,
+            target=target,
+            size=num_train_samples,
+            need_flow_during_training=need_flow_during_training,
+        )
+        val_on_train_dataset = TartuRawDataset(
+            shuffle=False,
+            use_geom_augmentation=False,
+            use_skip_frames="never",
+            mode="val",
+            cfg=cfg,
+        )
+        val_on_train_loader = torch.utils.data.DataLoader(
+            val_on_train_dataset,
+            pin_memory=True,
+            batch_size=cfg.data.batch_size,
+            num_workers=num_workers,
+            collate_fn=lidar_dataset_collate_fn,
+            shuffle=False,
+            worker_init_fn=worker_init_fn,
+            **prefetch_args,
+        )
+        val_loader, _ = get_tartu_val_dataset(
+            cfg, size=None, target=target, shuffle=shuffle_validation
+        )
 
     else:
         raise NotImplementedError(cfg.data.source)
+    
     return train_loader, train_dataset, val_loader, val_on_train_loader
 
 

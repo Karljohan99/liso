@@ -75,9 +75,7 @@ def worker_init_fn(worker_id):
     np.random.seed(4 + worker_id)
 
 
-def add_lidar_rows_to_kitti_sample(
-    sample_content, time_keys: Tuple[str], pcl_key="pcl_"
-):
+def add_lidar_rows_to_kitti_sample(sample_content, time_keys: Tuple[str], pcl_key="pcl_"):
     for tk in time_keys:
         pcl_key = f"pcl_{tk}"
         if pcl_key in sample_content:
@@ -1382,7 +1380,7 @@ class LidarDataset(torch.utils.data.Dataset):
                             sample_content[data_category][key_flow_trgt_src]
                         ),
                     )[..., 0:3].astype(np.float32)
-        if dataset_name in ("kitti", "nuscenes"):
+        if dataset_name in ("kitti", "tartu", "nuscenes"):
             if "objects" in sample_content["gt"]:
                 for obj in sample_content["gt"]["objects"]:
                     for timestamp in ("t0", "t1", "t2"):
