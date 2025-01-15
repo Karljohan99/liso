@@ -105,11 +105,13 @@ def main():
     success = 0
     for date in tqdm(dates):
         if not os.path.isdir(Path(args.tartu_raw_root) / date):
+            print(os.path.isdir(Path(args.tartu_raw_root) / date))
             continue
         
         lidar_data = Path(args.tartu_raw_root) / date / "lidar_center"
         csv_file = pcd_location_root / f"{date}.csv"
         if not os.path.isfile(csv_file):
+            print(csv_file)
             continue
 
         tartu_pcd_files = [lidar_data / pcd for pcd in os.listdir(lidar_data)]
