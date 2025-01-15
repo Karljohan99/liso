@@ -521,6 +521,10 @@ kitti:
   data:
     source: kitti
 
+tartu:
+  data:
+    source: tartu
+
 bev_100m_512:
   data:
     img_grid_size: !tuple
@@ -786,6 +790,11 @@ slim_kitti:
   meta_cfgs:
     - slim_low_res_loss_cfg
     - kitti
+
+slim_kitti:
+  meta_cfgs:
+    - slim_low_res_loss_cfg
+    - tartu
 
 slim_low_res_loss_cfg:
   SLIM:
