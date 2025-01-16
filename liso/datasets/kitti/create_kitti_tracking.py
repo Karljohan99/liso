@@ -88,7 +88,8 @@ def main():
 
     #target_dir.mkdir(parents=True, exist_ok=True)
 
-    tracking_seqs = [str(el).zfill(4) for el in range(21)]
+    #tracking_seqs = [str(el).zfill(4) for el in range(21)]
+    tracking_seqs = [f"{i:04d}" for i in range(300)]
 
     # transform from imu to velo is consistent for all sequences
     Tr_imu_to_velo_kitti = (
