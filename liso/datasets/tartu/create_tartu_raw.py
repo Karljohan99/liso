@@ -121,20 +121,25 @@ def main():
         kiss_config.mapping.voxel_size = 0.01 * kiss_config.data.max_range
         odometry = KissICP(config=kiss_config)
             
-        seq_idxs = list(range(0, len(tartu_pcd_files) - 2))
+        seq_idxs = [int(pcd_file.stem) for pcd_file in tartu_pcd_files]
+
         fnames = []
 
         for idx in tqdm(seq_idxs, leave=False):
+            if seq_idxs + 1 not in seq_idxs or seq_idxs + 2 not in seq_idxs:
+                skipped_sequences += 1
+                continue
+
+            if idx not in tartu_transfroms.transfroms or idx + 1 not in tartu_transfroms.transfroms or idx + 2 not in tartu_transfroms.transfroms:
+                 skipped_sequences += 1
+                 continue
+
             pcl_t0, is_ground_t0 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[idx])
 
             timestamps = get_timestamps(pcl_t0).astype(np.float64)
             odometry.register_frame(np.copy(pcl_t0[:, :3]).astype(np.float64), timestamps=timestamps, )
             pcl_t1, is_ground_t1 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[idx + 1])
             pcl_t2, is_ground_t2 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[idx + 2])
-
-            if idx not in tartu_transfroms.transfroms or idx + 1 not in tartu_transfroms.transfroms or idx + 2 not in tartu_transfroms.transfroms:
-                 skipped_sequences += 1
-                 continue
 
             map_T_bl_t0 = tartu_transfroms.transfroms[idx]
             map_T_bl_t1 = tartu_transfroms.transfroms[idx + 1]
@@ -146,7 +151,7 @@ def main():
 
             odom_t0_t1 = np.linalg.inv(map_T_velo_t0) @ map_T_velo_t1
             odom_t0_t2 = np.linalg.inv(map_T_velo_t0) @ map_T_velo_t2
-            sample_name = f"{date}_{tartu_pcd_files[idx]}"
+            sample_name = f"{date}_{idx}"
             data_dict = {
                 "pcl_t0": pcl_t0.astype(np.float32),
                 "pcl_t1": pcl_t1.astype(np.float32),
