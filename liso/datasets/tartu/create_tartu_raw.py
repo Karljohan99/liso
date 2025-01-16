@@ -89,7 +89,7 @@ def main():
     )
     args = argparser.parse_args()
 
-    target_dir = args.target_dir / "tartu_raw"
+    target_dir = args.target_dir / "tartu_raw/train"
 
     #target_dir.mkdir(parents=True, exist_ok=True)
 
