@@ -178,6 +178,9 @@ def main():
         w_Ts_si = odometry.poses
 
         for file_idx, fname in enumerate(fnames):
+            if len(w_Ts_si) <= file_idx + 2:
+                print(fname)
+                continue
             content = np.load(fname.with_suffix(".npy"), allow_pickle=True).item()
             kiss_odom_t0_t1 = (np.linalg.inv(w_Ts_si[file_idx]) @ w_Ts_si[file_idx + 1])
             kiss_odom_t0_t2 = (np.linalg.inv(w_Ts_si[file_idx]) @ w_Ts_si[file_idx + 2])
