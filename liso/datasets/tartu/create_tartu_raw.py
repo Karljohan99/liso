@@ -114,7 +114,7 @@ def main():
             print(csv_file)
             continue
 
-        tartu_pcd_files = [lidar_data / pcd for pcd in os.listdir(lidar_data)]
+        tartu_pcd_files = sorted([lidar_data / pcd for pcd in os.listdir(lidar_data)])
         tartu_transfroms = TartuRawTransfroms(csv_file)
 
         kiss_config = KISSConfig()
@@ -125,7 +125,7 @@ def main():
 
         fnames = []
 
-        for i, seq_idx in enumerate(tqdm(seq_idxs, leave=False)):
+        for i, seq_idx in enumerate(tqdm(seq_idxs[:-2], leave=False)):
             if seq_idx + 1 != seq_idxs[i+1] or seq_idx + 2 != seq_idxs[i+2]:
                 skipped_sequences += 1
                 continue
@@ -168,7 +168,7 @@ def main():
             fnames.append(target_fname)
             np.save(target_fname, data_dict,)
 
-            if seq_idx == seq_idxs[-1]:
+            if seq_idx == seq_idxs[-3]:
                 timestamps = get_timestamps(pcl_t1).astype(np.float64)
                 odometry.register_frame(np.copy(pcl_t1[:, :3]).astype(np.float64), timestamps=timestamps,)
                 timestamps = get_timestamps(pcl_t2).astype(np.float64)
