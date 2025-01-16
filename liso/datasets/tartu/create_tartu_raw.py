@@ -126,7 +126,7 @@ def main():
         fnames = []
 
         for idx in tqdm(seq_idxs, leave=False):
-            if seq_idxs + 1 not in seq_idxs or seq_idxs + 2 not in seq_idxs:
+            if idx + 1 not in seq_idxs or idx + 2 not in seq_idxs:
                 skipped_sequences += 1
                 continue
 
