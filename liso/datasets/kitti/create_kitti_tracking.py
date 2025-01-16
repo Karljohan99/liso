@@ -83,10 +83,10 @@ def main():
     args = argparser.parse_args()
 
     target_base_dir = args.target_dir
-    target_dir = target_base_dir.joinpath("kitti_tracking")
+    #target_dir = target_base_dir.joinpath("kitti_tracking")
     kiss_icp_db_file_wo_ext = target_base_dir.joinpath("kitti_tracking_kiss_icp_poses")
 
-    target_dir.mkdir(parents=True, exist_ok=True)
+    #target_dir.mkdir(parents=True, exist_ok=True)
 
     tracking_seqs = [str(el).zfill(4) for el in range(21)]
 
