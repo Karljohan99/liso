@@ -9,7 +9,7 @@
 #SBATCH -N 1
 
 # The maximum walltime of the job
-#SBATCH -t 1-00:00:00
+#SBATCH -t 5-00:00:00
 #SBATCH --mem=16G
 
 #SBATCH --cpus-per-task=4
