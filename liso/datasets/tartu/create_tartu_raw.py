@@ -125,25 +125,25 @@ def main():
 
         fnames = []
 
-        for idx in tqdm(seq_idxs, leave=False):
-            if idx + 1 not in seq_idxs or idx + 2 not in seq_idxs:
+        for i, seq_idx in enumerate(tqdm(seq_idxs, leave=False)):
+            if seq_idx + 1 != seq_idxs[i+1] or seq_idx + 2 != seq_idxs[i+2]:
                 skipped_sequences += 1
                 continue
 
-            if idx not in tartu_transfroms.transfroms or idx + 1 not in tartu_transfroms.transfroms or idx + 2 not in tartu_transfroms.transfroms:
+            if seq_idx not in tartu_transfroms.transfroms or seq_idx + 1 not in tartu_transfroms.transfroms or seq_idx + 2 not in tartu_transfroms.transfroms:
                  skipped_sequences += 1
                  continue
 
-            pcl_t0, is_ground_t0 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[idx])
+            pcl_t0, is_ground_t0 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[i])
 
             timestamps = get_timestamps(pcl_t0).astype(np.float64)
             odometry.register_frame(np.copy(pcl_t0[:, :3]).astype(np.float64), timestamps=timestamps, )
-            pcl_t1, is_ground_t1 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[idx + 1])
-            pcl_t2, is_ground_t2 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[idx + 2])
+            pcl_t1, is_ground_t1 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[i + 1])
+            pcl_t2, is_ground_t2 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[i + 2])
 
-            map_T_bl_t0 = tartu_transfroms.transfroms[idx]
-            map_T_bl_t1 = tartu_transfroms.transfroms[idx + 1]
-            map_T_bl_t2 = tartu_transfroms.transfroms[idx + 2]
+            map_T_bl_t0 = tartu_transfroms.transfroms[seq_idx]
+            map_T_bl_t1 = tartu_transfroms.transfroms[seq_idx + 1]
+            map_T_bl_t2 = tartu_transfroms.transfroms[seq_idx + 2]
 
             map_T_velo_t0 = map_T_bl_t0 @ bl_T_velo
             map_T_velo_t1 = map_T_bl_t1 @ bl_T_velo
@@ -151,7 +151,7 @@ def main():
 
             odom_t0_t1 = np.linalg.inv(map_T_velo_t0) @ map_T_velo_t1
             odom_t0_t2 = np.linalg.inv(map_T_velo_t0) @ map_T_velo_t2
-            sample_name = f"{date}_{idx}"
+            sample_name = f"{date}_{seq_idx}"
             data_dict = {
                 "pcl_t0": pcl_t0.astype(np.float32),
                 "pcl_t1": pcl_t1.astype(np.float32),
@@ -168,7 +168,7 @@ def main():
             fnames.append(target_fname)
             np.save(target_fname, data_dict,)
 
-            if idx == seq_idxs[-1]:
+            if seq_idx == seq_idxs[-1]:
                 timestamps = get_timestamps(pcl_t1).astype(np.float64)
                 odometry.register_frame(np.copy(pcl_t1[:, :3]).astype(np.float64), timestamps=timestamps,)
                 timestamps = get_timestamps(pcl_t2).astype(np.float64)
