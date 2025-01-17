@@ -384,18 +384,6 @@ def get_tartu_train_dataset(
     )
     return train_loader, train_dataset
 
-def get_tartu_val_dataset(
-    cfg,
-    size,
-    use_skip_frames="never",
-    target="flow",
-    batch_size=None,
-    pure_inference_mode=False,
-    shuffle=False,
-    mode="val",
-):
-    raise NotImplementedError("Tartu val dataset not implemented")
-
 
 def main():
     default_cfg_file = (

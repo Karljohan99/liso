@@ -473,7 +473,7 @@ def get_datasets(
             size=num_train_samples,
             need_flow_during_training=need_flow_during_training,
         )
-        val_on_train_dataset = TartuRawDataset(
+        val_on_train_dataset = KittiTrackingDataset(
             shuffle=False,
             use_geom_augmentation=False,
             use_skip_frames="never",
@@ -490,7 +490,7 @@ def get_datasets(
             worker_init_fn=worker_init_fn,
             **prefetch_args,
         )
-        val_loader, _ = get_tartu_val_dataset(
+        val_loader, _ = get_kitti_val_dataset(
             cfg, size=None, target=target, shuffle=shuffle_validation
         )
 
