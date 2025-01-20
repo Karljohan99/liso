@@ -108,7 +108,7 @@ default:
           slim_bev_120m:
             local: "/mnt/LISO_DATA_DIR/flow_slim/kitti_raw_inference_920/e8883/20230415_130852/preds"
       tartu:
-        local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw"
+        local: "/mnt/Bolt/liso/tartu_dataset/tartu_small"
         pure_dataset_root:
           local: "/mnt/ml2024"
         box_dbs:
