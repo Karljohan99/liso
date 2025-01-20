@@ -50,7 +50,7 @@ RUN . $CONDA_DIR/etc/profile.d/conda.sh && conda activate liso && pip install \
     tensorboard==2.8.0 \
     Pillow==9.4.0 \
     tqdm==4.62.3 \
-    numpy==1.18.5 \
+    numpy==1.21.0 \
     pyyaml==6.0 \
     scikit-image==0.19.2 \
     matplotlib==3.5.3 \
@@ -62,43 +62,13 @@ RUN . $CONDA_DIR/etc/profile.d/conda.sh && conda activate liso && pip install \
     openmim==0.3.5 \
     protobuf==3.20.1 \
     kiss-icp==0.2.10 \
+    pypcd4==1.0.0 \
     git+https://github.com/baurst/pykitti#egg=pykitti \
     git+https://github.com/u1234x1234/pynanoflann.git#egg=pynanoflann
 
 RUN . $CONDA_DIR/etc/profile.d/conda.sh && conda activate liso && mim install mmcv-full==1.7.1
 RUN . $CONDA_DIR/etc/profile.d/conda.sh && conda activate liso && mim install mmdet==2.27.0
 RUN . $CONDA_DIR/etc/profile.d/conda.sh && conda activate liso && mim install mmsegmentation==0.30.0
-
-RUN --mount=type=cache,target=/opt/conda/pkgs export CONDA_ALWAYS_YES="true" \
-    && conda create --name av2 python=3.8.15 \
-    && conda install -n av2 -c pytorch -c conda-forge conda-forge/label/rust_dev::rust av \
-    click \
-    joblib \
-    kornia \
-    matplotlib-base \
-    maturin \
-    nox \
-    numba \
-    numpy \
-    openblas \
-    opencv \
-    openssl \
-    pandas \
-    pip \
-    polars \
-    pyarrow \
-    pyproj \
-    rich \
-    scipy \
-    pytorch \
-    tqdm \
-    universal_pathlib \
-    shapely
-
-RUN . $CONDA_DIR/etc/profile.d/conda.sh && conda activate av2 && pip install \
-    kiss-icp==0.2.10 \
-    av2 \
-    git+https://github.com/JonathonLuiten/TrackEval.git
 
 ENV PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 

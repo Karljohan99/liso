@@ -8,4 +8,4 @@ ldd --version
 
 conda init && source $HOME/.bashrc && conda activate liso
 
-python3 liso/kabsch/liso_cli.py --summary-dir $HOME/liso/data/train_liso_tartu -c nuscenes bev_100m_512 centerpoint batch_size_four liso
+python3 liso/kabsch/liso_cli.py --summary-dir $/mnt/Bolt/train_logs -c nuscenes bev_100m_512 centerpoint batch_size_four liso

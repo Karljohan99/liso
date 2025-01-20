@@ -4,7 +4,7 @@ services:
   base:
     build:
       context: ../
-      dockerfile: docker/Dockerfile.base
+      dockerfile: docker/Dockerfile.tartu
       network: host
 
     image: liso_tartu:latest
