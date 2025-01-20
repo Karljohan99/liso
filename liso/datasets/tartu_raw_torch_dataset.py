@@ -60,7 +60,7 @@ class TartuRawDataset(LidarDataset):
         self.pure_inference_mode = pure_inference_mode
         dataset_root = Path(cfg.data.paths.tartu.local)
 
-        dataset_root = dataset_root.joinpath("tartu_raw")
+        dataset_root = dataset_root.joinpath("train")
         sample_files = sorted(glob(str(Path(dataset_root).joinpath("*.npy"))))
 
         if pure_inference_mode:
@@ -373,6 +373,7 @@ def get_tartu_train_dataset(
         )
 
         extra_loader_kwargs["sampler"] = weighted_random_sampler
+    print(train_dataset.size)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         pin_memory=True,
