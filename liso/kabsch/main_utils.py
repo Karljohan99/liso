@@ -30,7 +30,6 @@ from liso.datasets.waymo_torch_dataset import (
 from liso.datasets.tartu_raw_torch_dataset import (
     TartuRawDataset,
     get_tartu_train_dataset,
-    get_tartu_val_dataset,
 )
 from liso.eval.flow_metrics import FlowMetrics
 from liso.kabsch.shape_utils import Shape
