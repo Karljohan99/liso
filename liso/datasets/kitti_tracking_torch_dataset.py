@@ -44,6 +44,7 @@ class KittiTrackingDataset(LidarDataset):
         path_to_augmentation_db=None,
         path_to_mined_boxes_db=None,
         for_tracking=False,
+        tartu=False
     ) -> None:
         super().__init__(
             cfg,
@@ -59,9 +60,13 @@ class KittiTrackingDataset(LidarDataset):
         # assert mode == "val", "only mode val makes sense, but got {mode}"
         self.verbose = verbose
         self.pure_inference_mode = pure_inference_mode
-        dataset_root = Path(cfg.data.paths.kitti.local)
+        if tartu:
+            dataset_root = Path(cfg.data.paths.tartu.local)
+            dataset_root = dataset_root.joinpath("val")
+        else:
+            dataset_root = Path(cfg.data.paths.kitti.local)
+            dataset_root = dataset_root.joinpath("kitti_tracking")
 
-        dataset_root = dataset_root.joinpath("kitti_tracking")
         sample_files = sorted(glob(str(Path(dataset_root).joinpath("*.npy"))))
         if pure_inference_mode:
             assert not allow_data_augmentation
@@ -279,6 +284,7 @@ def get_kitti_val_dataset(
     pure_inference_mode=False,
     shuffle=False,
     mode="val",
+    tartu=False
 ):
     prefetch_args = {}
     if batch_size is None:
@@ -292,6 +298,7 @@ def get_kitti_val_dataset(
         "use_geom_augmentation": False,
         "pure_inference_mode": pure_inference_mode,
         "shuffle": shuffle,
+        "tartu": tartu
     }
     if target == "flow":
         val_dataset = KittiTrackingDataset(

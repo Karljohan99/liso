@@ -53,6 +53,7 @@ class KittiObjectDataset(LidarDataset):
         verbose=False,
         pure_inference_mode=False,
         get_only_these_specific_samples=None,
+        tartu=False
     ) -> None:
         super().__init__(
             cfg,

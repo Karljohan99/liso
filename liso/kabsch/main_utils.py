@@ -478,6 +478,7 @@ def get_datasets(
             use_skip_frames="never",
             mode="val",
             cfg=cfg,
+            tartu=True
         )
         val_on_train_loader = torch.utils.data.DataLoader(
             val_on_train_dataset,
@@ -490,7 +491,7 @@ def get_datasets(
             **prefetch_args,
         )
         val_loader, _ = get_kitti_val_dataset(
-            cfg, size=None, target=target, shuffle=shuffle_validation
+            cfg, size=None, target=target, shuffle=shuffle_validation, tartu=True
         )
 
     else:
