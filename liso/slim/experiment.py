@@ -487,7 +487,7 @@ class Experiment:
             "metrics_eval": self.global_step % 100 == 0 or self.debug_mode,
             "aggregated_metrics": False,
         }
-
+        print("Train loader size:", len(self.train_loader))
         train_iterator = iter(self.train_loader)
         while self.global_step < self.slim_cfg.iterations.train:
             progress_bar(f"TRAINING (interation {self.global_step} of {self.slim_cfg.iterations.train}):", 

@@ -343,6 +343,9 @@ def get_tartu_train_dataset(
     path_to_mined_boxes_db: str = None,
     need_flow_during_training: bool = True,
 ):
+    def init_worker(id):
+        return np.random.seed(id + cfg.data.num_workers)
+    
     extra_loader_kwargs = {"shuffle": shuffle}
 
     train_dataset = TartuRawDataset(
@@ -379,7 +382,7 @@ def get_tartu_train_dataset(
         batch_size=cfg.data.batch_size,
         num_workers=cfg.data.num_workers,
         collate_fn=lidar_dataset_collate_fn,
-        worker_init_fn=lambda id: np.random.seed(id + cfg.data.num_workers),
+        worker_init_fn=init_worker,
         **extra_loader_kwargs,
     )
     return train_loader, train_dataset
