@@ -373,7 +373,6 @@ def get_tartu_train_dataset(
         )
 
         extra_loader_kwargs["sampler"] = weighted_random_sampler
-    print(train_dataset.size)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         pin_memory=True,
