@@ -19,6 +19,7 @@ from liso.datasets.torch_dataset_commons import (
 )
 from liso.kabsch.shape_utils import Shape
 
+CFG = None
 
 class TartuRawDataset(LidarDataset):
     def __init__(
@@ -328,7 +329,9 @@ class TartuRawDataset(LidarDataset):
 
     def get_has_valid_scene_flow_label(self, sample_content, src_key):
         return np.zeros_like(sample_content[f"pcl_{src_key}"]["pcl"][:, 0], dtype=bool)
-
+    
+def init_worker(id):
+    return np.random.seed(id + CFG.data.num_workers)
 
 def get_tartu_train_dataset(
     cfg,
@@ -342,10 +345,8 @@ def get_tartu_train_dataset(
     path_to_augmentation_db: str = None,
     path_to_mined_boxes_db: str = None,
     need_flow_during_training: bool = True,
-):
-    def init_worker(id):
-        return np.random.seed(id + cfg.data.num_workers)
-    
+):  
+    GFG = cfg
     extra_loader_kwargs = {"shuffle": shuffle}
 
     train_dataset = TartuRawDataset(

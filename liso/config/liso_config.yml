@@ -126,7 +126,7 @@ default:
     pillar_height_range_m: !tuple
       - -2.0
       - 1.0
-    num_workers: 0
+    num_workers: 2
     batch_size: 2
     img_grid_size: !tuple
     - 64
