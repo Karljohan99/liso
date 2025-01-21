@@ -108,7 +108,7 @@ default:
           slim_bev_120m:
             local: "/mnt/LISO_DATA_DIR/flow_slim/kitti_raw_inference_920/e8883/20230415_130852/preds"
       tartu:
-        local: "/mnt/Bolt/liso/tartu_dataset/tartu_small"
+        local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw"
         pure_dataset_root:
           local: "/mnt/ml2024"
         box_dbs:
@@ -126,7 +126,7 @@ default:
     pillar_height_range_m: !tuple
       - -2.0
       - 1.0
-    num_workers: 2
+    num_workers: 4
     batch_size: 2
     img_grid_size: !tuple
     - 64
@@ -246,10 +246,10 @@ default:
     export_valid: True
     iterations:
       pretrain: 0
-      train: 15_000 # 1_000_000
+      train: 150_000 # 1_000_000
       train_metrics_every: 1
-      eval_every: 500
-      full_eval_every: 500
+      eval_every: 1000
+      full_eval_every: 5_000
     layers:
       convolution:
         type: normal
