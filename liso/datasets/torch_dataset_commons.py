@@ -40,34 +40,45 @@ class LidarSample:
         self.full_path = full_path
 
 
-KITTI_MOVABLE_CLASSES = ("Car", "Pedestrian", "Cyclist")
+KITTI_MOVABLE_CLASSES = ("car", "pedestrian", "cyclist")
 
 KITTI_MAP_TO_SIMPLE_CLASSES = {
-    "Car": "Car",
-    "PassengerCar": "Car",
-    "Pedestrian": "Pedestrian",
-    "Person": "Pedestrian",
-    "Van": "Car",
-    "Truck": "Car",
-    "Person_sitting": "Pedestrian",
-    "Cyclist": "Cyclist",
-    "Tram": "Car",
+    "car": "car",
+    "passenger_car": "car",
+    "pedestrian": "pedestrian",
+    "person": "pedestrian",
+    "van": "car",
+    "truck": "car",
+    "person_sitting": "pedestrian",
+    "cyclist": "cyclist",
+    "tram": "car",
+    "bicyclist": "cyclist",
+    "animal": "pedestrian",
+    "bus": "car",
+    "stroller": "pedestrian",
+    "trailer": "car",
 }
 
 KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING = {
-    "Unknown": None,
-    "DontCare": None,
-    "Car": "movable",
-    "PassengerCar": "movable",
-    "Pedestrian": "movable",
-    "Person": "movable",
-    "Van": "movable",
-    "Truck": "movable",
-    "Person_sitting": None,
-    "Cyclist": "movable",
-    "Tram": "movable",
-    "Misc": None,
-    "LargeVehicle": "movable",
+    "unknown": None,
+    "dontcare": None,
+    "car": "movable",
+    "passenger_car": "movable",
+    "pedestrian": "movable",
+    "person": "movable",
+    "van": "movable",
+    "truck": "movable",
+    "person_sitting": None,
+    "cyclist": "movable",
+    "tram": "movable",
+    "misc": None,
+    "arge_vehicle": "movable",
+    "motorcyclist": "movable",
+    "bicyclist": "movable",
+    "animal": "movable",
+    "bus": "movable",
+    "stroller": "movable",
+    "trailer": "movable",
 }
 
 
