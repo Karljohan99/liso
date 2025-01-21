@@ -67,11 +67,11 @@ def list_of_dicts_to_dict_of_lists(in_list):
 
         return out_dict
     
-def progress_bar(message, current, total, bar_length=20):
+def progress_bar(message, current, total, full_iter, bar_length=20):
     fraction = current / total
     arrow = int(fraction * bar_length - 1) * '-' + '>'
     padding = int(bar_length - len(arrow)) * ' '
-    ending = '\n' if current == total else '\r'
+    ending = '\n' if current % full_iter == 0 else '\r'
     print(f'{message}: [{arrow}{padding}] {int(fraction*100)}%', end=ending)
 
 class Experiment:
@@ -491,7 +491,7 @@ class Experiment:
         train_iterator = iter(self.train_loader)
         while self.global_step < self.slim_cfg.iterations.train:
             progress_bar(f"TRAINING (interation {self.global_step} of {self.slim_cfg.iterations.train}):", 
-                         self.global_step, self.slim_cfg.iterations.train)
+                         self.global_step, self.slim_cfg.iterations.train, self.slim_cfg.iterations.full_eval_every)
             self.optimizer.zero_grad()
             try:
                 full_train_data = next(train_iterator)
