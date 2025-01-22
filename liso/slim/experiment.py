@@ -858,6 +858,9 @@ class Experiment:
         pc2 = sample_data_t1["pcl_ta"]["pcl"].to("cuda")
         valid_mask_pc2 = sample_data_t1["pcl_ta"]["pcl_is_valid"].to("cuda")
 
+        print("POINT_CLOUD1", pc1)
+        print("POINT_CLOUD2", pc2)
+
         for pred_fw, pred_bw in zip(preds_fw, preds_bw):
             intermediate_metrics_dict = {}
 
@@ -875,6 +878,7 @@ class Experiment:
                     bev_extent=self.bev_extent,
                     metrics_collector=intermediate_metrics_dict,
                 )
+                print("LOSS:", slim_loss)
             elif self.slim_cfg.phases.train.mode == "supervised":
                 raise NotImplementedError()
             else:
@@ -886,7 +890,7 @@ class Experiment:
 
         self.optimizer.zero_grad()
         slim_loss.backward()
-        
+
         if not self.cfg_was_tb_logged:
             self.tb_factory("train", "cfg/").add_text("cfg", "\n\nCommand: `$ %s`\n\n    %s"
                 % (os.path.abspath(sys.argv[0]) + " " + " ".join(sys.argv[1:]), pretty_json(self.cfg), ),
