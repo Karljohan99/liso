@@ -202,10 +202,7 @@ class Experiment:
             num_train_samples = 15000  # TODO: this should not be necessary, we will overwrite moving threshold anyway during loading of model weights
 
         self.mask_gt_renderer = RecursiveDeviceMover(self.cfg).cuda()
-        self.model = SLIM(
-            cfg=self.cfg,
-            num_train_samples=num_train_samples,
-        )
+        self.model = SLIM(cfg=self.cfg, num_train_samples=num_train_samples,)
         self.model.cuda()
 
         if for_training:
@@ -508,29 +505,30 @@ class Experiment:
             "metrics_eval": self.global_step % 100 == 0 or self.debug_mode,
             "aggregated_metrics": False,
         }
+
         print("Train loader size:", len(self.train_loader))
+
         train_iterator = iter(self.train_loader)
         while self.global_step < self.slim_cfg.iterations.train:
             if self.global_step % (self.slim_cfg.iterations.full_eval_every // 10) == 0:
                 print(f"TRAINING (interation {self.global_step} of {self.slim_cfg.iterations.train})")
 
             self.optimizer.zero_grad()
+
             try:
                 full_train_data = next(train_iterator)
             except StopIteration:
                 train_iterator = iter(self.train_loader)
                 full_train_data = next(train_iterator)
-            (
-                sample_data_t0,
-                sample_data_t1,
-                _,
-                meta_data,
-            ) = self.mask_gt_renderer(full_train_data)
+
+            sample_data_t0, sample_data_t1, _, meta_data = self.mask_gt_renderer(full_train_data)
+
             pred_fw, _ = self.train_one_step(
                 sample_data_t0,
                 sample_data_t1,
                 train_summaries,
             )
+
             # if self.global_step % 100 == 0 or self.debug_mode:
             #     monitor_input_output_data(train_writer, train_el, pred_fw)
             if self.debug_mode or (
@@ -562,10 +560,7 @@ class Experiment:
                     self.global_step,
                     dynamicness_bev[:, None, :, :],
                 )
-            if (
-                self.global_step % self.slim_cfg.iterations.full_eval_every == 0
-                or self.debug_mode
-            ): # evaluation
+            if self.global_step % self.slim_cfg.iterations.full_eval_every == 0 or self.debug_mode: # evaluation
                 max_train_eval_iter = self.cfg.validation.num_val_on_train_steps
                 max_val_eval_iter = self.cfg.validation.num_val_steps
                 if self.debug_mode:
@@ -800,22 +795,7 @@ class Experiment:
                         dataformats="NHWC",
                         global_step=self.global_step + num_val_steps,
                     )
-                    # monitor_layer_flow_logits(
-                    #    img_writer,
-                    #    gt_flow=gt_flow[0, ...],
-                    #    gt_flow_bev=gt_flow_bev[0, ...],
-                    #    raw_flows=pred_flows_for_eval["raw"][0, ...],
-                    #    agg_flows=pred_flows_for_eval["agg"][0, ...],
-                    #    static_agg_flows=pred_flows_for_eval["rig"][0, ...],
-                    #    static_logits=pred["staticness"][0, ...].detach().cpu().numpy(),
-                    #    confidence_logits=None,
-                    #    static_threshold=self.model.moving_dynamicness_threshold.value()
-                    #    .detach()
-                    #    .cpu()
-                    #    .numpy(),
-                    #    pc1=val_el["pcl_t0"]["pc"][0, ...].numpy(),
-                    #    pc2=val_el["pcl_t1"]["pc"][0, ...].numpy(),
-                    # )
+
                 for flow_name, eval_flow in pred_flows_for_eval.items():
                     for batch_idx in range(sample_data_t0["pcl_ta"]["pcl"].shape[0]):
                         flow_metrics[flow_name].update(
@@ -863,12 +843,7 @@ class Experiment:
             )
         return eval_metrics
 
-    def train_one_step(
-        self,
-        sample_data_t0,
-        sample_data_t1,
-        summaries,
-    ):
+    def train_one_step(self, sample_data_t0, sample_data_t1, summaries):
         self.tb_factory.global_step = self.global_step
         metrics_dicts = []
         slim_loss = torch.zeros(1).cuda()
@@ -876,18 +851,16 @@ class Experiment:
 
         # print("Training on el: {0}".format(train_el["name"][0].decode("utf-8")))
 
-        preds_fw, preds_bw = self.model(
-            sample_data_t0,
-            sample_data_t1,
-            summaries,
-        )
+        preds_fw, preds_bw = self.model(sample_data_t0, sample_data_t1, summaries)
 
         pc1 = sample_data_t0["pcl_ta"]["pcl"].to("cuda")
         valid_mask_pc1 = sample_data_t0["pcl_ta"]["pcl_is_valid"].to("cuda")
         pc2 = sample_data_t1["pcl_ta"]["pcl"].to("cuda")
         valid_mask_pc2 = sample_data_t1["pcl_ta"]["pcl_is_valid"].to("cuda")
+
         for pred_fw, pred_bw in zip(preds_fw, preds_bw):
             intermediate_metrics_dict = {}
+
             if self.slim_cfg.phases.train.mode == "unsupervised":
                 slim_loss = slim_loss + selfsupervisedSlimSingleScaleLoss(
                     pc1=pc1,
@@ -904,39 +877,29 @@ class Experiment:
                 )
             elif self.slim_cfg.phases.train.mode == "supervised":
                 raise NotImplementedError()
-                # slim_loss = slim_loss + supervisedSlimSingleScaleLoss(
-                #    train_el,
-                #    pred_fw,
-                #    pred_bw,
-                #    moving_thresh_module=self.model.moving_dynamicness_threshold,
-                #    loss_cfg=self.slim_cfg.losses.supervised,
-                #    model_cfg=self.slim_cfg.model,
-                #    metrics_collector=intermediate_metrics_dict,
-                #    summaries=summaries,
-                #    training=True,
-                # )
             else:
                 raise NotImplementedError(
                     "Don't know mode {0}".format(self.slim_cfg.phases.train.mode)
                 )
+            
             metrics_dicts.append(intermediate_metrics_dict)
+
         self.optimizer.zero_grad()
         slim_loss.backward()
+        
         if not self.cfg_was_tb_logged:
-            self.tb_factory("train", "cfg/").add_text(
-                "cfg",
-                "\n\nCommand: `$ %s`\n\n    %s"
-                % (
-                    os.path.abspath(sys.argv[0]) + " " + " ".join(sys.argv[1:]),
-                    pretty_json(self.cfg),
-                ),
+            self.tb_factory("train", "cfg/").add_text("cfg", "\n\nCommand: `$ %s`\n\n    %s"
+                % (os.path.abspath(sys.argv[0]) + " " + " ".join(sys.argv[1:]), pretty_json(self.cfg), ),
             )
+
             self.cfg_was_tb_logged = True
+
         self.optimizer.step()
         self.lr_scheduler.step()
         # print(dict(self.model.named_parameters())["network.fnet.layer2.0.conv2.weight"])
         acc_metrics = list_of_dicts_to_dict_of_lists(metrics_dicts)
         acc_metrics = {k: sum(v) for k, v in acc_metrics.items()}
+
         for name, value in acc_metrics.items():
             self.tb_factory("train", "metrics/").add_scalar(name, value)
 
@@ -947,5 +910,4 @@ class Experiment:
         )
 
         self.global_step += 1
-
         return preds_fw[-1], preds_bw[-1]
