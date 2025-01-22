@@ -112,10 +112,10 @@ default:
         pure_dataset_root:
           local: "/mnt/ml2024"
         box_dbs:
-          local: "/mnt/Bolt/liso/tartu_dataset/mined_dbs"
+          local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw/mined_dbs"
         slim_flow:
           slim_bev_120m:
-            local: "/gpfs/space/projects/Bolt/liso/slim"
+            local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw/slim_flow"
     source: "toy"
     flow_source: "gt"
     odom_source: "gt"
