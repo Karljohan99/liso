@@ -496,6 +496,7 @@ class Experiment:
         np.savez_compressed(target_file, **save_stuff_cpu)
 
     def run(self):
+        print("RUN")
         self.model.train()
 
         train_writer = self.tb_factory("train", self.cfg.data.source + "/")
@@ -568,13 +569,9 @@ class Experiment:
                     max_val_eval_iter = 5
                     print("Warning: EVAL ON SUPER FEW SAMPLES")
                 if isinstance(self.val_on_train_loader.dataset, KittiRawDataset):
-                    print(
-                        f"Skipping validation on {self.val_on_train_loader.dataset.__class__.__name__}: No GT available!"
-                    )
+                    print(f"Skipping validation on {self.val_on_train_loader.dataset.__class__.__name__}: No GT available!")
                 else:
-                    self.eval_model(
-                        "train", self.val_on_train_loader, max_train_eval_iter
-                    )
+                    self.eval_model("train", self.val_on_train_loader, max_train_eval_iter)
                 self.eval_model("valid", self.val_loader, max_val_eval_iter)
                 self.model.train()
                 torch.save(
@@ -585,10 +582,9 @@ class Experiment:
                 break
 
     def eval_model(self, name, data_loader, max_iterations=None):
+        print("EVAL")
         curr_time = datetime.now()
-        print(
-            f"{curr_time}:Running validation on {name} {data_loader.dataset.__class__.__name__}: Dataset size: {len(data_loader)}, eval on {max_iterations} batches."
-        )
+        print(f"{curr_time}:Running validation on {name} {data_loader.dataset.__class__.__name__}: Dataset size: {len(data_loader)}, eval on {max_iterations} batches.")
 
         self.model.eval()
         img_writer = self.tb_factory("valid", name + "/")
@@ -606,6 +602,7 @@ class Experiment:
                     pass
 
     def run_eval_on_this_dataset(self, val_loader, img_writer, max_iterations=None):
+        print("EVAL ON THIS DATASET")
         val_summaries = {
             "writer": None,
             "imgs_eval": False,
@@ -627,19 +624,11 @@ class Experiment:
         with torch.no_grad():
             num_val_steps = 0
             for val_el in tqdm(val_loader, disable=False):
-                (
-                    sample_data_t0,
-                    sample_data_t1,
-                    _,
-                    meta_data,
-                ) = self.mask_gt_renderer(val_el)
+                sample_data_t0, sample_data_t1, _, meta_data = self.mask_gt_renderer(val_el)
                 # print("Val on el: {0}".format(meta_data["sample_id"][0]))
-                preds_fw, _ = self.model(
-                    sample_data_t0,
-                    sample_data_t1,
-                    val_summaries,
-                )
+                preds_fw, _ = self.model(sample_data_t0, sample_data_t1, val_summaries)
                 num_val_steps += 1
+
                 if self.debug_mode and num_val_steps > 3:
                     break
                 if max_iterations is not None and num_val_steps > max_iterations:
@@ -652,11 +641,14 @@ class Experiment:
                     & sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
                     & sample_data_t0["gt"]["point_has_valid_flow_label"].cpu().numpy()
                 )
+
                 static_mask = (
                     np.logical_not(moving_mask)
                     & sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
                     & sample_data_t0["gt"]["point_has_valid_flow_label"].cpu().numpy()
                 )
+                print("EVAL1")
+
                 # TODO: make sure this is correct
                 pred_flows_for_eval = {"raw": pred.static_flow.cpu().numpy()}
                 if pred.aggregated_flow is not None:
@@ -705,18 +697,18 @@ class Experiment:
                         self.global_step + num_val_steps,
                         dynamicness_bev[:, None, :, :],
                     )
-                    masked_pillar_coors = sample_data_t0["pcl_ta"][
-                        "pillar_coors"
-                    ].clone()
+
+                    masked_pillar_coors = sample_data_t0["pcl_ta"]["pillar_coors"].clone()
+
                     bev_masked_pred_flow, bev_pred_mask = scatter_pointwise2bev(
                         pred.static_flow.cpu(),
                         masked_pillar_coors,
                         sample_data_t0["pcl_ta"]["pcl_is_valid"],
                         self.cfg.data.img_grid_size,
                     )
-                    rgb_img = pytorch_create_flow_image(
-                        bev_masked_pred_flow[..., :2].permute(0, -1, 1, 2)
-                    ).permute(0, 2, 3, 1)
+
+                    rgb_img = pytorch_create_flow_image(bev_masked_pred_flow[..., :2].permute(0, -1, 1, 2)).permute(0, 2, 3, 1)
+
                     img_writer.add_image(
                         "masked_pred_flow",
                         torch.where(
@@ -725,9 +717,9 @@ class Experiment:
                         dataformats="HWC",
                         global_step=self.global_step + num_val_steps,
                     )
-                    masked_pillar_coors[
-                        ~sample_data_t0["gt"]["point_has_valid_flow_label"]
-                    ] = 0
+
+                    masked_pillar_coors[~sample_data_t0["gt"]["point_has_valid_flow_label"]] = 0
+
                     bev_masked_gt_flow, bev_mask = scatter_pointwise2bev(
                         sample_data_t0["gt"]["flow_ta_tb"],
                         masked_pillar_coors,
@@ -736,9 +728,8 @@ class Experiment:
                         self.cfg.data.img_grid_size,
                     )
 
-                    rgb_img = pytorch_create_flow_image(
-                        bev_masked_gt_flow[..., :2].permute(0, -1, 1, 2)
-                    ).permute(0, 2, 3, 1)
+                    rgb_img = pytorch_create_flow_image(bev_masked_gt_flow[..., :2].permute(0, -1, 1, 2)).permute(0, 2, 3, 1)
+
                     img_writer.add_image(
                         "masked_gt_flow",
                         torch.where(
@@ -748,9 +739,8 @@ class Experiment:
                         global_step=self.global_step + num_val_steps,
                     )
 
-                    pcls = get_network_input_pcls(
-                        self.cfg, sample_data_t0, "ta", to_device="cuda"
-                    )
+                    pcls = get_network_input_pcls(self.cfg, sample_data_t0, "ta", to_device="cuda")
+
                     elevation_rad_max = np.deg2rad(10.0)
                     elevation_rad_min = np.deg2rad(-30.0)
                     range_image_height = 128
@@ -763,10 +753,8 @@ class Experiment:
                         range_image_width,
                     )
 
-                    if (
-                        "boxes" in sample_data_t0["gt"]
-                        and "boxes" in sample_data_t1["gt"]
-                    ):
+                    if ("boxes" in sample_data_t0["gt"] and "boxes" in sample_data_t1["gt"]):
+
                         log_box_movement(
                             cfg=self.cfg,
                             writer=img_writer,
@@ -776,6 +764,7 @@ class Experiment:
                             pred_boxes=None,
                             writer_prefix="gt",
                         )
+
                     if "boxes" in sample_data_t0["gt"]:
                         gt_boxes = sample_data_t0["gt"]["boxes"]
                         draw_boxes_on_2d_projection(
@@ -789,6 +778,7 @@ class Experiment:
                     img_canvas = np.repeat(
                         img_canvas, repeats=2, axis=1  # increase vertical resolution
                     )
+
                     img_writer.add_images(
                         "range_images",
                         img_canvas,
@@ -796,6 +786,7 @@ class Experiment:
                         global_step=self.global_step + num_val_steps,
                     )
 
+                print("EVAL2")
                 for flow_name, eval_flow in pred_flows_for_eval.items():
                     for batch_idx in range(sample_data_t0["pcl_ta"]["pcl"].shape[0]):
                         flow_metrics[flow_name].update(
@@ -831,10 +822,12 @@ class Experiment:
                             )
                         )
 
+        print("EVAL3")
         eval_metrics = {}
         for k, list_of_metrics in list_of_metrics_dicts.items():
             if len(list_of_metrics):
                 eval_metrics[k] = aggregate_metrics(list_of_metrics)
+
         for flow_type, metr in flow_metrics.items():
             metr.log_metrics_curves(
                 global_step=self.global_step,
@@ -879,8 +872,8 @@ class Experiment:
                     metrics_collector=intermediate_metrics_dict,
                 )
                 print("LOSS:", slim_loss)
-                print("PRED_FW:", pred_fw)
-                print("PRED_BW", pred_bw)
+                #print("PRED_FW:", np.unique(pred_fw))
+                #print("PRED_BW", np.unique(pred_bw))
             elif self.slim_cfg.phases.train.mode == "supervised":
                 raise NotImplementedError()
             else:
