@@ -108,14 +108,14 @@ default:
           slim_bev_120m:
             local: "/mnt/LISO_DATA_DIR/flow_slim/kitti_raw_inference_920/e8883/20230415_130852/preds"
       tartu:
-        local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw"
+        local: "/mnt/Bolt/liso/tartu_dataset/tartu_small"
         pure_dataset_root:
           local: "/mnt/ml2024"
         box_dbs:
-          local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw/mined_dbs"
+          local: "/mnt/Bolt/liso/tartu_dataset/tartu_small/mined_dbs"
         slim_flow:
           slim_bev_120m:
-            local: "/mnt/Bolt/liso/tartu_dataset/tartu_raw/slim_flow"
+            local: "/mnt/Bolt/liso/tartu_dataset/tartu_small/slim_flow"
     source: "toy"
     flow_source: "gt"
     odom_source: "gt"
