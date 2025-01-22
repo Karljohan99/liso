@@ -491,8 +491,8 @@ class Experiment:
         train_iterator = iter(self.train_loader)
         while self.global_step < self.slim_cfg.iterations.train:
             if self.global_step % (self.slim_cfg.iterations.full_eval_every // 10) == 0:
-                print(f"TRAINING (interation {self.global_step} of {self.slim_cfg.iterations.train}")
-                
+                print(f"TRAINING (interation {self.global_step} of {self.slim_cfg.iterations.train})")
+
             self.optimizer.zero_grad()
             try:
                 full_train_data = next(train_iterator)
