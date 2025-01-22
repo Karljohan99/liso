@@ -879,6 +879,8 @@ class Experiment:
                     metrics_collector=intermediate_metrics_dict,
                 )
                 print("LOSS:", slim_loss)
+                print("PRED_FW:", pred_fw)
+                print("PRED_BW", pred_bw)
             elif self.slim_cfg.phases.train.mode == "supervised":
                 raise NotImplementedError()
             else:

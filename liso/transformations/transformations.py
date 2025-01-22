@@ -1902,7 +1902,7 @@ def is_same_quaternion(q0, q1):
     return numpy.allclose(q0, q1) or numpy.allclose(q0, -q1)
 
 
-def _import_module(name, package=None, warn=True, postfix='_py', ignore='_'):
+def _import_module(name, package=None, warn=False, postfix='_py', ignore='_'):
     """Try import all public attributes from module into global namespace.
 
     Existing attributes with name clashes are renamed with prefix.
