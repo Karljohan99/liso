@@ -606,6 +606,7 @@ class Experiment:
         val_summaries = {
             "writer": None,
             "imgs_eval": False,
+            "imgs_eval": False,
             "metrics_eval": False,
             "aggregated_metrics": False,
         }
@@ -625,7 +626,7 @@ class Experiment:
             num_val_steps = 0
             for val_el in tqdm(val_loader, disable=False):
                 sample_data_t0, sample_data_t1, _, meta_data = self.mask_gt_renderer(val_el)
-                # print("Val on el: {0}".format(meta_data["sample_id"][0]))
+                print("Val on el: {0}".format(meta_data["sample_id"][0]))
                 preds_fw, _ = self.model(sample_data_t0, sample_data_t1, val_summaries)
                 num_val_steps += 1
 
