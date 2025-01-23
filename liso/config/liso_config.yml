@@ -99,14 +99,14 @@ default:
           slim_bev_120m:
             local: "/mnt/LISO_DATA_DIR/selfsupervised_OD/waymo_slim_flow/95611/20230926_105925/preds"
       kitti:
-        local: "/mnt/LISO_DATA_DIR/selfsupervised_OD/kitti"
+        local: "/mnt/Bolt/liso/kitti_dataset/processed"
         pure_dataset_root:
-          local: "/mnt/LISO_DATA_DIR/datasets/datasets_raw/kitti/kitti_object"
+          local: "/mnt/Bolt/liso/kitti_dataset/raw"
         box_dbs:
-          local: "/mnt/LISO_DATA_DIR/selfsupervised_OD/mined_dbs/kitti"
+          local: "/mnt/Bolt/liso/kitti_dataset/mined_dbs"
         slim_flow:
           slim_bev_120m:
-            local: "/mnt/LISO_DATA_DIR/flow_slim/kitti_raw_inference_920/e8883/20230415_130852/preds"
+            local: ""
       tartu:
         local: "/mnt/Bolt/liso/tartu_dataset/tartu_small"
         pure_dataset_root:
