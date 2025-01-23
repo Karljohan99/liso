@@ -304,11 +304,6 @@ class TartuRawDataset(LidarDataset):
 
     def get_has_valid_scene_flow_label(self, sample_content, src_key):
         return np.zeros_like(sample_content[f"pcl_{src_key}"]["pcl"][:, 0], dtype=bool)
-    
-def init_worker(id):
-    #return np.random.seed(id + CFG.data.num_workers)
-    return np.random.seed(id + 2)
-
 
 def get_tartu_train_dataset(
     cfg,
@@ -357,7 +352,7 @@ def get_tartu_train_dataset(
         batch_size=cfg.data.batch_size,
         num_workers=cfg.data.num_workers,
         collate_fn=lidar_dataset_collate_fn,
-        worker_init_fn=init_worker,
+        worker_init_fn=worker_init_fn,
         **extra_loader_kwargs,
     )
     return train_loader, train_dataset

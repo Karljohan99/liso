@@ -422,7 +422,7 @@ def get_kitti_train_dataset(
         batch_size=cfg.data.batch_size,
         num_workers=cfg.data.num_workers,
         collate_fn=lidar_dataset_collate_fn,
-        worker_init_fn=lambda id: np.random.seed(id + cfg.data.num_workers),
+        worker_init_fn=worker_init_fn,
         **extra_loader_kwargs,
     )
     return train_loader, train_dataset
