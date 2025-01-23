@@ -6,8 +6,8 @@ default:
     save_model_every: 5000
   validation:
     val_every_n_steps: 5000
-    num_val_steps: 50
-    num_val_on_train_steps: 15 #125
+    num_val_steps: 470
+    num_val_on_train_steps: 125
     obj_is_moving_velocity_thresh: 0.1
   logging:
     log_interval: 1
@@ -246,10 +246,10 @@ default:
     export_valid: True
     iterations:
       pretrain: 0
-      train: 1500 # 1_000_000
+      train: 15000 # 1_000_000
       train_metrics_every: 1
-      eval_every: 10
-      full_eval_every: 50
+      eval_every: 100
+      full_eval_every: 500
     layers:
       convolution:
         type: normal

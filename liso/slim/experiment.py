@@ -625,7 +625,7 @@ class Experiment:
                     & sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
                     & sample_data_t0["gt"]["point_has_valid_flow_label"].cpu().numpy()
                 )
-                print("EVAL1")
+                #print("EVAL1")
 
                 # TODO: make sure this is correct
                 pred_flows_for_eval = {"raw": pred.static_flow.cpu().numpy()}
@@ -764,7 +764,7 @@ class Experiment:
                         global_step=self.global_step + num_val_steps,
                     )
 
-                print("EVAL2")
+                #print("EVAL2")
                 for flow_name, eval_flow in pred_flows_for_eval.items():
                     for batch_idx in range(sample_data_t0["pcl_ta"]["pcl"].shape[0]):
                         flow_metrics[flow_name].update(
@@ -800,7 +800,7 @@ class Experiment:
                             )
                         )
 
-        print("EVAL3")
+        #print("EVAL3")
         eval_metrics = {}
         for k, list_of_metrics in list_of_metrics_dicts.items():
             if len(list_of_metrics):
@@ -829,8 +829,8 @@ class Experiment:
         pc2 = sample_data_t1["pcl_ta"]["pcl"].to("cuda")
         valid_mask_pc2 = sample_data_t1["pcl_ta"]["pcl_is_valid"].to("cuda")
 
-        print("POINT_CLOUD1", pc1)
-        print("POINT_CLOUD2", pc2)
+        #print("POINT_CLOUD1", pc1)
+        #print("POINT_CLOUD2", pc2)
 
         for pred_fw, pred_bw in zip(preds_fw, preds_bw):
             intermediate_metrics_dict = {}
@@ -849,7 +849,7 @@ class Experiment:
                     bev_extent=self.bev_extent,
                     metrics_collector=intermediate_metrics_dict,
                 )
-                print("LOSS:", slim_loss)
+                #print("LOSS:", slim_loss)
                 #print("PRED_FW:", np.unique(pred_fw))
                 #print("PRED_BW", np.unique(pred_bw))
             elif self.slim_cfg.phases.train.mode == "supervised":
