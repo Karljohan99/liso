@@ -1006,16 +1006,13 @@ class LidarDataset(torch.utils.data.Dataset):
 
     def drop_points_on_kitti_vehicle(self, sample_content, src_key, target_key):
         half_vehicle_size = 0.5 * np.array([5.0, 2.5, 3.0])
+        
         for sk, tk in ((src_key, target_key), (target_key, src_key)):
             downsample_keys = self.get_sample_data_downsample_keys(sk, tk)
+
             if f"pcl_{sk}" in sample_content:
-                is_vehicle_point = (
-                    np.abs(sample_content[f"pcl_{sk}"][:, :3])
-                    < half_vehicle_size[None, ...]
-                ).all(axis=-1)
-                sample_content = downsample_dict(
-                    sample_content, ~is_vehicle_point, downsample_keys
-                )
+                is_vehicle_point = (np.abs(sample_content[f"pcl_{sk}"][:, :3]) < half_vehicle_size[None, ...]).all(axis=-1)
+                sample_content = downsample_dict(sample_content, ~is_vehicle_point, downsample_keys)
 
         return sample_content
 

@@ -180,6 +180,7 @@ class TartuRawDataset(LidarDataset):
         self.initialize_loader_saver_if_necessary()
         self.initialize_dbs_if_necessary()
 
+        # load sample
         fname = str(self.sample_files[index], encoding="utf-8")
         sample_content = self.loader_saver_helper.load_sample(fname, np.load, allow_pickle=True).item()
 
