@@ -23,4 +23,4 @@
 
 module load singularity
 
-singularity run --nv --bind /gpfs/space/projects:/mnt ${HOME}/liso/liso_dev.sif ${HOME}/liso/prepare_tartu_data.bash
+singularity run --bind /gpfs/space/projects:/mnt ${HOME}/liso/liso_dev.sif ${HOME}/liso/prepare_tartu_data.bash
