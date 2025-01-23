@@ -187,14 +187,7 @@ class Experiment:
         #     self.cfg, pp_voxel_cfg
         # )
         if for_training:
-            (
-                self.train_loader,
-                _,
-                self.val_loader,
-                self.val_on_train_loader,
-            ) = get_datasets(
-                self.cfg, self.fast_test, target="flow", shuffle_validation=True
-            )
+            self.train_loader, _, self.val_loader, self.val_on_train_loader = get_datasets(self.cfg, self.fast_test, target="flow", shuffle_validation=True)
             num_train_samples = len(self.train_loader)
             print("NUM TRAIN SAMPLES:", num_train_samples)
 
@@ -395,36 +388,20 @@ class Experiment:
         t0_t2_el: Dict[str, torch.FloatTensor] = None,
         skip_existing=False,
     ):
-        (
-            sample_data_t0,
-            sample_data_t1,
-            _,
-            meta_data_t0_t1,
-        ) = self.mask_gt_renderer(t0_t1_el)
+        sample_data_t0, sample_data_t1, _, meta_data_t0_t1 = self.mask_gt_renderer(t0_t1_el)
 
-        target_file = target_dir.joinpath(meta_data_t0_t1["sample_id"][0]).with_suffix(
-            ".npz"
-        )
+        target_file = target_dir.joinpath(meta_data_t0_t1["sample_id"][0]).with_suffix(".npz")
         if skip_existing and target_file.exists():
             return
 
-        preds_fw, preds_bw = self.model(
-            sample_data_t0,
-            sample_data_t1,
-            summaries=no_summaries,
-        )
+        preds_fw, preds_bw = self.model(sample_data_t0, sample_data_t1, summaries=no_summaries) #PREDICTION
+
         preds = {}
         preds["bev_raw_flow_t0_t1"] = preds_fw[-1].modified_network_output.static_flow
         preds["bev_raw_flow_t1_t0"] = preds_bw[-1].modified_network_output.static_flow
-        preds["bev_dynamicness_t0_t1"] = preds_fw[
-            -1
-        ].modified_network_output.dynamicness
-        preds["bev_dynamicness_t1_t0"] = preds_bw[
-            -1
-        ].modified_network_output.dynamicness
-        save_stuff = {
-            "static_threshold": self.model.moving_dynamicness_threshold.value(),
-        }
+        preds["bev_dynamicness_t0_t1"] = preds_fw[-1].modified_network_output.dynamicness
+        preds["bev_dynamicness_t1_t0"] = preds_bw[-1].modified_network_output.dynamicness
+        save_stuff = {"static_threshold": self.model.moving_dynamicness_threshold.value()}
 
         if t0_t2_el is not None:
             (
@@ -627,7 +604,7 @@ class Experiment:
             for val_el in tqdm(val_loader, disable=False):
                 sample_data_t0, sample_data_t1, _, meta_data = self.mask_gt_renderer(val_el)
                 print("Val on el: {0}".format(meta_data["sample_id"][0]))
-                preds_fw, _ = self.model(sample_data_t0, sample_data_t1, val_summaries)
+                preds_fw, _ = self.model(sample_data_t0, sample_data_t1, val_summaries) #PREDICTION
                 num_val_steps += 1
 
                 if self.debug_mode and num_val_steps > 3:

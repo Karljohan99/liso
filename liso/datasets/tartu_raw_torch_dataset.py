@@ -59,6 +59,7 @@ class TartuRawDataset(LidarDataset):
         self.pure_inference_mode = pure_inference_mode
         dataset_root = Path(cfg.data.paths.tartu.local)
 
+        # Import training data from dataset root
         dataset_root = dataset_root.joinpath("train")
         sample_files = sorted(glob(str(Path(dataset_root).joinpath("*.npy"))))
 
@@ -66,7 +67,7 @@ class TartuRawDataset(LidarDataset):
             assert not use_geom_augmentation
             self.sample_files = sample_files
         else:
-            if size is not None:
+            if size is not None: # Take a random subset of the dataset 
                 if size < len(sample_files):
                     self.sample_files = np.random.choice(sample_files, size=size, replace=False).tolist()
                 else:
@@ -75,22 +76,22 @@ class TartuRawDataset(LidarDataset):
             else:
                 self.sample_files = sample_files
 
-        if get_only_these_specific_samples:
+        if get_only_these_specific_samples: # Take only specific samples
             filtered_samples = []
             for sample in self.sample_files:
                 for special_sample in get_only_these_specific_samples:
                     if special_sample in sample:
                         filtered_samples.append(sample)
             self.sample_files = filtered_samples
+
             if size is not None:
-                assert size == len(
-                    filtered_samples
-                ), "either stop requesting specific samples or request size=None"
+                assert size == len(filtered_samples), "either stop requesting specific samples or request size=None"
+            
             print(f"Warning: Only requested {len(self.sample_files)}")
 
         downsample_dataset_keep_ratio = self.cfg.data.setdefault("downsample_dataset_keep_ratio", 1.0)
 
-        if self.mode == "train" and self.cfg.data.downsample_dataset_keep_ratio != 1.0:
+        if self.mode == "train" and self.cfg.data.downsample_dataset_keep_ratio != 1.0: # Keep a specific ratio of the dataset
             self.dataset_sequence_is_messed_up = True
             print(f"Downsampling dataset by {downsample_dataset_keep_ratio}. From {len(sample_files)} to..")
             self.sample_files = np.random.choice(
@@ -100,7 +101,7 @@ class TartuRawDataset(LidarDataset):
             ).tolist()
             print(f"... {len(sample_files)} samples.")
 
-        seq_samples = [("_".join(Path(el).stem.split("_")[0:4]), Path(el)) for el in self.sample_files]
+        seq_samples = [("_".join(Path(el).stem.split("_")[0:-1]), Path(el)) for el in self.sample_files]
         
         # everything must be numpy arrays:
         # https://github.com/pytorch/pytorch/issues/13246#issuecomment-715050814
@@ -121,10 +122,12 @@ class TartuRawDataset(LidarDataset):
         for seq_name in sequences_with_sample_names:
             sequences_with_sample_names[seq_name] = sorted(sequences_with_sample_names[seq_name])
             
+        # Put all sequences to list
         self.per_seq_sample_paths = []
         for seq_name in sequences_with_sample_names:
             self.per_seq_sample_paths.append(sequences_with_sample_names[seq_name])
 
+        # Get sequence lengths
         self.sequence_lens = np.array([len(el) for el in self.per_seq_sample_paths])
 
         print("sequence lengths: ", self.sequence_lens)
@@ -138,12 +141,7 @@ class TartuRawDataset(LidarDataset):
 
         self.sample_files = np.array(self.sample_files).astype(np.string_)
 
-    def get_samples_for_sequence(
-        self,
-        sequence_idx: int,
-        start_idx_in_sequence: int,
-        sequence_length: int,
-    ) -> List[LidarSample]:
+    def get_samples_for_sequence(self, sequence_idx: int, start_idx_in_sequence: int, sequence_length: int) -> List[LidarSample]:
         
         assert not self.dataset_sequence_is_messed_up
 
@@ -152,18 +150,10 @@ class TartuRawDataset(LidarDataset):
         # global_end_idx = global_start_idx + sequence_length
         chosen_samples = [LidarSample(
             idx=global_start_idx + idx,
-            sample_name=str(
-                self.per_seq_sample_paths[sequence_idx][
-                    start_idx_in_sequence + idx
-                ].stem
-            ),
+            sample_name=str(self.per_seq_sample_paths[sequence_idx][start_idx_in_sequence + idx].stem),
             timestamp=0,
-            full_path=str(
-                self.per_seq_sample_paths[sequence_idx][start_idx_in_sequence + idx]
-            ),
-            )
-            for idx in range(sequence_length)
-        ]
+            full_path=str(self.per_seq_sample_paths[sequence_idx][start_idx_in_sequence + idx]))
+            for idx in range(sequence_length)]
 
         return chosen_samples
 
@@ -172,11 +162,10 @@ class TartuRawDataset(LidarDataset):
             if seq_name in self.per_seq_sample_paths[idx][0].as_posix():
                 return idx
 
-    def get_consecutive_sample_idxs_for_sequence(
-        self,
-        sequence_idx: int,
-    ) -> List[LidarSample]:
+    def get_consecutive_sample_idxs_for_sequence(self, sequence_idx: int) -> List[LidarSample]:
+
         assert not self.dataset_sequence_is_messed_up
+        
         if sequence_idx >= len(self.sequence_lens):
             print("Ran out of sequences!")
             return None
@@ -203,8 +192,7 @@ class TartuRawDataset(LidarDataset):
             src_trgt_time_delta_s = 0.1
             self.drop_unused_timed_keys_from_sample(sample_content, "foo", "bar", "baz")
         else:
-            (src_key, target_key, delete_target_key, src_trgt_time_delta_s, ) = self.select_time_keys()
-
+            src_key, target_key, delete_target_key, src_trgt_time_delta_s = self.select_time_keys()
             self.drop_unused_timed_keys_from_sample(sample_content, src_key, target_key, delete_target_key)
 
         # KITTI (RAW) SPECIFIC: only needed to create tracking DB (raydrop augmentation)
@@ -230,9 +218,7 @@ class TartuRawDataset(LidarDataset):
                 # also add flow from t1->t2
                 assert src_key == "t0", src_key
                 assert target_key == "t1", target_key
-                self.load_add_flow_to_sample_content(
-                    fname, sample_content, src_key="t1", target_key="t2"
-                )
+                self.load_add_flow_to_sample_content(fname, sample_content, src_key="t1", target_key="t2")
 
         if not self.pure_inference_mode:  # we only have slim flow for train dataset
             if self.mined_boxes_db is not None:
@@ -244,12 +230,7 @@ class TartuRawDataset(LidarDataset):
             and self.use_geom_augmentation
             and self.cfg.data.augmentation.active
         ):
-            self.augment_sample_content(
-                sample_content,
-                src_key,
-                target_key,
-                "tartu",
-            )
+            self.augment_sample_content(sample_content, src_key, target_key, "tartu")
 
         meta = {"sample_id": sample_content["name"]}
         del sample_content["name"]
@@ -309,12 +290,7 @@ class TartuRawDataset(LidarDataset):
         else:
             augm_sample_ta = {}
 
-        return (
-            sample_data_ta,
-            sample_data_tb,
-            augm_sample_ta,
-            meta,
-        )
+        return (sample_data_ta, sample_data_tb, augm_sample_ta, meta,)
 
     def extract_boxes_for_timestamp(
         self,
@@ -363,9 +339,7 @@ def get_tartu_train_dataset(
         need_flow=need_flow_during_training,
     )
     if path_to_mined_boxes_db is not None:
-        sample_file_stems = [
-            Path(str(sf, encoding="utf-8")).stem for sf in train_dataset.sample_files
-        ]
+        sample_file_stems = [Path(str(sf, encoding="utf-8")).stem for sf in train_dataset.sample_files]
         weighted_random_sampler = (
             get_weighted_random_sampler_dropping_samples_without_boxes(
                 path_to_mined_boxes_db,
