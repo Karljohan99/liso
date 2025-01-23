@@ -37,7 +37,7 @@ def get_kitti_tracking_object_cam_pose(obj):
 
 
 def get_corrected_lidar_frame_idx_for_seq(tracking_seq: str, raw_frame_idx: int):
-    if tracking_seq == "0001":
+    if tracking_seq == "": # 0001
         # this sequence had some lidar framedrops -> missing velo files...
         if raw_frame_idx in [177, 178, 179, 180]:
             return None
@@ -83,12 +83,14 @@ def main():
     args = argparser.parse_args()
 
     target_base_dir = args.target_dir
-    target_dir = target_base_dir.joinpath("kitti_tracking")
+    #target_dir = target_base_dir.joinpath("kitti_tracking")
+    target_dir = args.target_dir
     kiss_icp_db_file_wo_ext = target_base_dir.joinpath("kitti_tracking_kiss_icp_poses")
 
-    target_dir.mkdir(parents=True, exist_ok=True)
+    #target_dir.mkdir(parents=True, exist_ok=True)
 
-    tracking_seqs = [str(el).zfill(4) for el in range(21)]
+    #tracking_seqs = [str(el).zfill(4) for el in range(21)]
+    tracking_seqs = [f"{i:04d}" for i in range(30)]
 
     # transform from imu to velo is consistent for all sequences
     Tr_imu_to_velo_kitti = (
@@ -165,10 +167,8 @@ def main():
 
         cam2_T_velo = kitti_tracking.calib.T_cam2_velo
         velo_T_cam2 = np.linalg.inv(cam2_T_velo)
-        if tracking_seq_str == "0000":
-            np.save(
-                "/tmp/cam2_T_velo.npy", cam2_T_velo
-            )  # to convert OGC to camera coordnate system
+        #if tracking_seq_str == "0000":
+        #    np.save("/tmp/cam2_T_velo.npy", cam2_T_velo)  # to convert OGC to camera coordnate system
         for obj_frame_idx in tqdm(range(len(kitti_tracking.objects) - 2)):
             corrected_lidar_frame_idx = get_corrected_lidar_frame_idx_for_seq(
                 tracking_seq_str, obj_frame_idx
@@ -331,10 +331,7 @@ def main():
                 "kiss_odom_t2_t1": np.linalg.inv(kiss_odom_t1_t2),
             }
 
-            np.save(
-                target_dir / Path(sample_name),
-                data_dict,
-            )
+            np.save(target_dir / Path(sample_name), data_dict,)
 
 
 def extract_lidar_flow_ta_tb(
