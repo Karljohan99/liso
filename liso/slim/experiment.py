@@ -313,12 +313,10 @@ class Experiment:
             val_on_train_loader = None
 
         elif self.cfg.data.source == "tartu":
-            t0_t1_loader, t0_t1_ds = get_tartu_train_dataset(
-                cfg=self.cfg, use_skip_frames="never", **ds_args
-            )
-            t0_t2_loader, _ = get_tartu_train_dataset(
-                cfg=self.cfg, use_skip_frames="only", **ds_args
-            )
+            t0_t1_loader, t0_t1_ds = get_tartu_train_dataset(cfg=self.cfg, use_skip_frames="never", **ds_args)
+
+            t0_t2_loader, _ = get_tartu_train_dataset(cfg=self.cfg, use_skip_frames="only", **ds_args)
+
             val_loader, _ = get_kitti_val_dataset(
                 self.cfg,
                 size=None,
@@ -327,6 +325,7 @@ class Experiment:
                 shuffle=False,
                 mode="val",
             )
+
             val_on_train_loader = None  # kitti tracking dataloader loads all data
 
         assert len(t0_t1_loader) == len(t0_t2_loader), "missed frames"
@@ -342,41 +341,22 @@ class Experiment:
             for vl in (val_loader, val_on_train_loader):
                 if vl is None:
                     continue
-                for sample_idx, val_el in tqdm(
-                    enumerate(vl), total=len(vl), disable=False
-                ):
+                for sample_idx, val_el in tqdm(enumerate(vl), total=len(vl), disable=False):
                     if self.world_size > 1:
                         if sample_idx % self.world_size != self.worker_id:
                             continue
 
-                    self.slim_inference_and_save_result(
-                        target_dir,
-                        t0_t1_ds,
-                        no_summaries,
-                        val_el,
-                        t0_t2_el=None,
-                        skip_existing=skip_existing,
-                    )
+                    self.slim_inference_and_save_result(target_dir, t0_t1_ds, no_summaries, val_el, t0_t2_el=None, skip_existing=skip_existing)
             # print("NOT EXPORTING ON TRAIN AGAIN")
             # print("REMOVE EXIT BELOW TO RUN EXPORT ON TRAIN SET")
             # print("DONE")
             # sys.exit(0)
-            for sample_idx, (t0_t1_el, t0_t2_el) in tqdm(
-                enumerate(zip(t0_t1_loader, t0_t2_loader)),
-                total=len(t0_t1_loader),
-                disable=False,
-            ):
+            for sample_idx, (t0_t1_el, t0_t2_el) in tqdm(enumerate(zip(t0_t1_loader, t0_t2_loader)), total=len(t0_t1_loader), disable=False):
                 if self.world_size > 1:
                     if sample_idx % self.world_size != self.worker_id:
                         continue
-                self.slim_inference_and_save_result(
-                    target_dir,
-                    t0_t1_ds,
-                    no_summaries,
-                    t0_t1_el,
-                    t0_t2_el,
-                    skip_existing=skip_existing,
-                )
+
+                self.slim_inference_and_save_result(target_dir, t0_t1_ds, no_summaries, t0_t1_el, t0_t2_el, skip_existing=skip_existing)
 
     @torch.no_grad()
     def slim_inference_and_save_result(
@@ -394,7 +374,7 @@ class Experiment:
         if skip_existing and target_file.exists():
             return
 
-        preds_fw, preds_bw = self.model(sample_data_t0, sample_data_t1, summaries=no_summaries) #PREDICTION
+        preds_fw, preds_bw = self.model(sample_data_t0, sample_data_t1, summaries=no_summaries) #PREDICTION t0 -> t1
 
         preds = {}
         preds["bev_raw_flow_t0_t1"] = preds_fw[-1].modified_network_output.static_flow
@@ -404,12 +384,7 @@ class Experiment:
         save_stuff = {"static_threshold": self.model.moving_dynamicness_threshold.value()}
 
         if t0_t2_el is not None:
-            (
-                sample_data_t0_2,
-                sample_data_t2,
-                _,
-                meta_data_t0_t2,
-            ) = self.mask_gt_renderer(t0_t2_el)
+            (sample_data_t0_2, sample_data_t2, _, meta_data_t0_t2,) = self.mask_gt_renderer(t0_t2_el)
 
             assert meta_data_t0_t1["sample_id"] == meta_data_t0_t2["sample_id"], (
                 meta_data_t0_t1["sample_id"],
@@ -421,47 +396,21 @@ class Experiment:
             assert torch.all(
                 sample_data_t0["pcl_ta"]["pcl"] == sample_data_t0_2["pcl_ta"]["pcl"]
             )
-            preds_fw, preds_bw = self.model(
-                sample_data_t0_2,
-                sample_data_t2,
-                summaries=no_summaries,
-            )
-            preds["bev_raw_flow_t0_t2"] = preds_fw[
-                -1
-            ].modified_network_output.static_flow
-            preds["bev_raw_flow_t2_t0"] = preds_bw[
-                -1
-            ].modified_network_output.static_flow
-            preds["bev_dynamicness_t0_t2"] = preds_fw[
-                -1
-            ].modified_network_output.dynamicness
-            preds["bev_dynamicness_t2_t0"] = preds_bw[
-                -1
-            ].modified_network_output.dynamicness
+            preds_fw, preds_bw = self.model(sample_data_t0_2, sample_data_t2, summaries=no_summaries) #PREDICT t0 -> t2
 
-            preds_fw, preds_bw = self.model(
-                sample_data_t1,
-                sample_data_t2,
-                summaries=no_summaries,
-            )
-            preds["bev_raw_flow_t1_t2"] = preds_fw[
-                -1
-            ].modified_network_output.static_flow
-            preds["bev_raw_flow_t2_t1"] = preds_bw[
-                -1
-            ].modified_network_output.static_flow
-            preds["bev_dynamicness_t1_t2"] = preds_fw[
-                -1
-            ].modified_network_output.dynamicness
-            preds["bev_dynamicness_t2_t1"] = preds_bw[
-                -1
-            ].modified_network_output.dynamicness
+            preds["bev_raw_flow_t0_t2"] = preds_fw[-1].modified_network_output.static_flow
+            preds["bev_raw_flow_t2_t0"] = preds_bw[-1].modified_network_output.static_flow
+            preds["bev_dynamicness_t0_t2"] = preds_fw[-1].modified_network_output.dynamicness
+            preds["bev_dynamicness_t2_t0"] = preds_bw[-1].modified_network_output.dynamicness
+
+            preds_fw, preds_bw = self.model(sample_data_t1, sample_data_t2, summaries=no_summaries) #PREDICT t1 -> t2
+            preds["bev_raw_flow_t1_t2"] = preds_fw[-1].modified_network_output.static_flow
+            preds["bev_raw_flow_t2_t1"] = preds_bw[-1].modified_network_output.static_flow
+            preds["bev_dynamicness_t1_t2"] = preds_fw[-1].modified_network_output.dynamicness
+            preds["bev_dynamicness_t2_t1"] = preds_bw[-1].modified_network_output.dynamicness
 
         # save:
-        save_stuff = {
-            **save_stuff,
-            **preds,
-        }
+        save_stuff = {**save_stuff, **preds, }
         save_stuff_cpu = {
             k: torch.squeeze(v, dim=0).detach().cpu().numpy()
             for k, v in save_stuff.items()
@@ -507,8 +456,6 @@ class Experiment:
                 train_summaries,
             )
 
-            # if self.global_step % 100 == 0 or self.debug_mode:
-            #     monitor_input_output_data(train_writer, train_el, pred_fw)
             if self.debug_mode or (
                 (self.global_step % self.cfg.logging.img_log_interval) == 0
             ): # logging
@@ -570,6 +517,7 @@ class Experiment:
             img_writer=img_writer,
             max_iterations=max_iterations,
         )
+
         for flow_category, v in eval_metrics.items():
             val_tb_writer = self.tb_factory("valid", name + "/" + flow_category + "/")
             for key, scalar_metric in v.items():
@@ -604,7 +552,7 @@ class Experiment:
             for val_el in tqdm(val_loader, disable=False):
                 sample_data_t0, sample_data_t1, _, meta_data = self.mask_gt_renderer(val_el)
                 print("Val on el: {0}".format(meta_data["sample_id"][0]))
-                preds_fw, _ = self.model(sample_data_t0, sample_data_t1, val_summaries) #PREDICTION
+                preds_fw, _ = self.model(sample_data_t0, sample_data_t1, val_summaries) #PREDICTION t0 -> t1
                 num_val_steps += 1
 
                 if self.debug_mode and num_val_steps > 3:
@@ -636,7 +584,6 @@ class Experiment:
                     pred_rig_flow = pred.static_aggr_flow.cpu().numpy()
                     pred_flows_for_eval["rig"] = pred_rig_flow
                 if self.debug_mode or num_val_steps % 20 == 0:
-                    # monitor_input_output_data(img_writer, train_data_t0_t1, pred)
                     log_flow_image(
                         img_writer,
                         self.cfg,
