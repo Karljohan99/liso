@@ -18,9 +18,9 @@ def load_tartu_pcl_image_projection_get_ground_label(pcd_file: str):
     tartu_pcd[:, 3] /= 255
     is_ground = JPCGroundRemove(
         pcl=tartu_pcd[:, :3],
-        range_img_width=2083,
-        range_img_height=64,
-        sensor_height=1.73,
+        range_img_width=1024,
+        range_img_height=32,
+        sensor_height=2.11,
         delta_R=1,
     )
     return tartu_pcd, is_ground
