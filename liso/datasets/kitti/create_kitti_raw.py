@@ -68,7 +68,8 @@ def main():
         for drive_str in tqdm(drives_strs, leave=False):
             try:
                 kitti = pykitti.raw(args.kitti_raw_root, date, drive_str)
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                print(e)
                 skipped_sequences += 1
                 continue
             kiss_config = KISSConfig()
