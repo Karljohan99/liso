@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 from argparse import ArgumentParser
 from pathlib import Path
+from functools import lru_cache
 
 import numpy as np
 import pykitti
-from liso.datasets.kitti.create_kitti_raw import (
-    correct_kitti_scan,
-    load_kitti_pcl_image_projection_get_ground_label,
-)
 from tqdm import tqdm
+from liso.jcp.jcp import JPCGroundRemove
+
+@lru_cache(maxsize=32)
+def load_kitti_pcl_image_projection_get_ground_label(velo_file: str, kitti_desc="raw"):
+    assert kitti_desc in ("raw", "tracking", "object"), kitti_desc
+    kitti_pcl = pykitti.utils.load_velo_scan(velo_file)
+    is_ground = JPCGroundRemove(
+        pcl=kitti_pcl[:, :3],
+        range_img_width=1024,
+        range_img_height=32,
+        sensor_height=2.11,
+        delta_R=1,
+    )
+    homog_pcl = np.copy(kitti_pcl)
+    assert len(homog_pcl.shape) == 2, homog_pcl.shape
+    assert homog_pcl.shape[-1] == 4, homog_pcl.shape
+    homog_pcl[:, -1] = 1.0
+    return kitti_pcl, homog_pcl, is_ground
 
 
 def get_points_in_box_mask(pcl_homog, lidar_T_obj, obj_size):
@@ -153,7 +168,7 @@ def main():
             )
             pcl_fnames.append(lidar_fname)
             odometry.register_frame(
-                correct_kitti_scan(pcl_t0[:, :3].astype(np.float64)),
+                pcl_t0[:, :3].astype(np.float64),
                 KITTIRawDataset.get_timestamps(pcl_t0),
             )
         all_poses_w_T_lidar[tracking_seq_str] = dict(zip(pcl_fnames, odometry.poses))
