@@ -30,4 +30,4 @@
 
 module load singularity
 
-singularity run --nv ${HOME}/liso/liso_dev.sif ${HOME}/liso/train_slim.bash
+singularity run --nv --bind /gpfs/space/projects:/mnt ${HOME}/liso/liso_tartu.sif ${HOME}/liso/train_slim.bash
