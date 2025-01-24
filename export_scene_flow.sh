@@ -12,7 +12,7 @@
 #SBATCH --ntasks-per-node=1
 
 # The maximum walltime of the job is 5 minutes
-#SBATCH -t 1:00:00
+#SBATCH -t 1-00:00:00
 #SBATCH --mem=16G
 
 # Keep this line if you need a GPU for your job
@@ -30,4 +30,4 @@
 
 module load singularity
 
-singularity run --nv ${HOME}/liso/liso_dev.sif ${HOME}/liso/infere_slim.bash
+singularity run --nv --bind /gpfs/space/projects:/mnt ${HOME}/liso/liso_dev.sif ${HOME}/liso/infere_slim.bash
