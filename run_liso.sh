@@ -13,7 +13,7 @@
 
 # The maximum walltime of the job is 5 minutes
 #SBATCH -t 1-00:00:00
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 
 # Keep this line if you need a GPU for your job
 #SBATCH --partition=gpu
