@@ -40,34 +40,45 @@ class LidarSample:
         self.full_path = full_path
 
 
-KITTI_MOVABLE_CLASSES = ("Car", "Pedestrian", "Cyclist")
+KITTI_MOVABLE_CLASSES = ("car", "pedestrian", "cyclist")
 
 KITTI_MAP_TO_SIMPLE_CLASSES = {
-    "Car": "Car",
-    "PassengerCar": "Car",
-    "Pedestrian": "Pedestrian",
-    "Person": "Pedestrian",
-    "Van": "Car",
-    "Truck": "Car",
-    "Person_sitting": "Pedestrian",
-    "Cyclist": "Cyclist",
-    "Tram": "Car",
+    "car": "car",
+    "passenger_car": "car",
+    "pedestrian": "pedestrian",
+    "person": "pedestrian",
+    "van": "car",
+    "truck": "car",
+    "person_sitting": "pedestrian",
+    "cyclist": "cyclist",
+    "tram": "car",
+    "bicyclist": "cyclist",
+    "animal": "pedestrian",
+    "bus": "car",
+    "stroller": "pedestrian",
+    "trailer": "car",
 }
 
 KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING = {
-    "Unknown": None,
-    "DontCare": None,
-    "Car": "movable",
-    "PassengerCar": "movable",
-    "Pedestrian": "movable",
-    "Person": "movable",
-    "Van": "movable",
-    "Truck": "movable",
-    "Person_sitting": None,
-    "Cyclist": "movable",
-    "Tram": "movable",
-    "Misc": None,
-    "LargeVehicle": "movable",
+    "unknown": None,
+    "dontcare": None,
+    "car": "movable",
+    "passenger_car": "movable",
+    "pedestrian": "movable",
+    "person": "movable",
+    "van": "movable",
+    "truck": "movable",
+    "person_sitting": None,
+    "cyclist": "movable",
+    "tram": "movable",
+    "misc": None,
+    "arge_vehicle": "movable",
+    "motorcyclist": "movable",
+    "bicyclist": "movable",
+    "animal": "movable",
+    "bus": "movable",
+    "stroller": "movable",
+    "trailer": "movable",
 }
 
 
@@ -75,9 +86,7 @@ def worker_init_fn(worker_id):
     np.random.seed(4 + worker_id)
 
 
-def add_lidar_rows_to_kitti_sample(
-    sample_content, time_keys: Tuple[str], pcl_key="pcl_"
-):
+def add_lidar_rows_to_kitti_sample(sample_content, time_keys: Tuple[str], pcl_key="pcl_"):
     for tk in time_keys:
         pcl_key = f"pcl_{tk}"
         if pcl_key in sample_content:
@@ -997,16 +1006,13 @@ class LidarDataset(torch.utils.data.Dataset):
 
     def drop_points_on_kitti_vehicle(self, sample_content, src_key, target_key):
         half_vehicle_size = 0.5 * np.array([5.0, 2.5, 3.0])
+        
         for sk, tk in ((src_key, target_key), (target_key, src_key)):
             downsample_keys = self.get_sample_data_downsample_keys(sk, tk)
+
             if f"pcl_{sk}" in sample_content:
-                is_vehicle_point = (
-                    np.abs(sample_content[f"pcl_{sk}"][:, :3])
-                    < half_vehicle_size[None, ...]
-                ).all(axis=-1)
-                sample_content = downsample_dict(
-                    sample_content, ~is_vehicle_point, downsample_keys
-                )
+                is_vehicle_point = (np.abs(sample_content[f"pcl_{sk}"][:, :3]) < half_vehicle_size[None, ...]).all(axis=-1)
+                sample_content = downsample_dict(sample_content, ~is_vehicle_point, downsample_keys)
 
         return sample_content
 
@@ -1382,7 +1388,7 @@ class LidarDataset(torch.utils.data.Dataset):
                             sample_content[data_category][key_flow_trgt_src]
                         ),
                     )[..., 0:3].astype(np.float32)
-        if dataset_name in ("kitti", "nuscenes"):
+        if dataset_name in ("kitti", "tartu", "nuscenes"):
             if "objects" in sample_content["gt"]:
                 for obj in sample_content["gt"]["objects"]:
                     for timestamp in ("t0", "t1", "t2"):
