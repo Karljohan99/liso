@@ -192,31 +192,30 @@ def main():
                 and global_step == resume_from_step
             )
         ):
-            print(
-                f"Step: {global_step} - Deleting datasets to save RAM before starting tracking!"
-            )
+            print(f"Step: {global_step} - Deleting datasets to save RAM before starting tracking!")
+
             del train_loader
             del val_on_train_loader
             gc.collect()
 
             skip_db_generation = False
             if global_step == resume_from_step:
-                clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(
-                    cfg
-                )
+                clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(cfg)
+
                 if cfg.data.tracking_cfg.bootstrap_detector == "flow_cluster_detector":
                     box_predictor_for_tracking = FlowClusterDetector(cfg)
                 else:
                     raise NotImplementedError(cfg.data.tracking_cfg.bootstrap_detector)
                 box_db_base_dir = get_box_dbs_path(cfg)
                 path_to_box_augm_db = box_db_base_dir / "boxes_db_global_step_0.npy"
+
                 assert cfg.optimization.rounds.raw_or_tracked in {
                     "tracked",
                     "raw",
                 }, cfg.optimization.rounds.raw_or_tracked
-                path_to_mined_boxes_db = (
-                    box_db_base_dir / f"{cfg.optimization.rounds.raw_or_tracked}.npz"
-                )
+
+                path_to_mined_boxes_db = (box_db_base_dir / f"{cfg.optimization.rounds.raw_or_tracked}.npz")
+
                 tracking_args = {"export_raw_tracked_detections_to": box_db_base_dir}
                 if (
                     Path(path_to_box_augm_db).exists()
@@ -251,9 +250,7 @@ def main():
                     tracking_args["timeout_s"] = 60
                     tracking_args["max_augm_db_size_mb"] = 1
                 else:
-                    tracking_args[
-                        "max_augm_db_size_mb"
-                    ] = cfg.data.tracking_cfg.setdefault("max_augm_db_size_mb", 250)
+                    tracking_args["max_augm_db_size_mb"] = cfg.data.tracking_cfg.setdefault("max_augm_db_size_mb", 250)
                 (
                     path_to_box_augm_db,
                     paths_to_mined_boxes_dbs,
@@ -280,16 +277,8 @@ def main():
             )
 
             # copy the box db to log dir
-            copy_box_db_to_dir(
-                path_to_box_augm_db,
-                log_dir=log_dir,
-                global_step=global_step,
-            )
-            copy_box_db_to_dir(
-                path_to_mined_boxes_db,
-                log_dir=log_dir,
-                global_step=global_step,
-            )
+            copy_box_db_to_dir(path_to_box_augm_db, log_dir=log_dir, global_step=global_step)
+            copy_box_db_to_dir(path_to_mined_boxes_db, log_dir=log_dir, global_step=global_step)
 
             if not isinstance(clean_dataset_for_db_creation, KittiRawDataset):
                 # we don't have boxes or flow in the kitti raw to evaluate against
@@ -400,9 +389,7 @@ def main():
 
         if cfg.loss.pointrcnn_loss.active or cfg.loss.pointpillars_loss.active:
             assert cfg.network.name in ("pointrcnn", "pointpillars"), cfg.network.name
-            train_data_source = get_train_data_source(
-                cfg, sample_data_t0, augm_sample_data_t0
-            )
+            train_data_source = get_train_data_source(cfg, sample_data_t0, augm_sample_data_t0)
 
             forward_start_time = time.perf_counter()
             (pointrcnn_losses_dict) = box_predictor(
