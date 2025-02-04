@@ -109,11 +109,18 @@ def main():
 
     skipped_sequences = 0
     success = 0
+    date_count = 0
+    last_date = ""
     for line in tqdm(lines):
         line_elems = line.strip().split(" ")
         date = line_elems[0]
         start = int(line_elems[1])
         end = int(line_elems[2])
+
+        if last_date == date:
+            date_count += 1
+        
+        last_date = date
 
         if not os.path.isdir(Path(args.tartu_raw_root) / date):
             print("Not a directory:", Path(args.tartu_raw_root) / date)
@@ -162,7 +169,7 @@ def main():
 
             odom_t0_t1 = np.linalg.inv(map_T_velo_t0) @ map_T_velo_t1
             odom_t0_t2 = np.linalg.inv(map_T_velo_t0) @ map_T_velo_t2
-            sample_name = f"{date}_{seq_idx}"
+            sample_name = f"{date}_{date_count}_{seq_idx}"
             data_dict = {
                 "pcl_t0": pcl_t0.astype(np.float32),
                 "pcl_t1": pcl_t1.astype(np.float32),
