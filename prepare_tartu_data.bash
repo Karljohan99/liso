@@ -2,4 +2,4 @@
 
 conda init && source $HOME/.bashrc && conda activate liso
 
-python $HOME/liso/liso/datasets/tartu/create_tartu_raw.py --tartu_raw_root /mnt/ml2024 --target_dir /mnt/Bolt/liso/tartu_dataset --pcd_locations /mnt/Bolt/liso/tartu_pcd_locations
+python $HOME/liso/liso/datasets/tartu/python create_tartu_filtered.py --target_dir /mnt/Bolt/liso/tartu_dataset --filtered_data_file data.txt --tartu_raw_root /mnt/ml2024 --pcd_locations /mnt/Bolt/liso/tartu_pcd_locations
