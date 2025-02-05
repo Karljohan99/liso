@@ -117,7 +117,7 @@ class KittiObjectDataset(LidarDataset):
         assert self.data_use_skip_frames in ("only", "both", "never")
 
     def object_is_movable(self, obj_category) -> bool:
-        return KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING[obj_category] == "movable"
+        return KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING[obj_category.lower()] == "movable"
 
     def __getitem__(self, index):
         self.initialize_loader_saver_if_necessary()
@@ -228,7 +228,7 @@ class KittiObjectDataset(LidarDataset):
     def get_label_idxs_from_label_name(self, object_categories: List[str]):
         label_idxs = []
         for obj_category in object_categories:
-            if KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING[obj_category] is None:
+            if KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING[obj_category.lower()] is None:
                 cls_idx = UNKNOWN_CLASS_ID
             else:
                 simple_name = KITTI_MAP_TO_SIMPLE_CLASSES[obj_category]
