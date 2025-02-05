@@ -200,15 +200,10 @@ class Experiment:
 
         if for_training:
             if self.slim_cfg.optimizer == "rmsprop":
-                self.optimizer = torch.optim.RMSprop(
-                    self.model.parameters(),
-                    lr=self.slim_cfg.learning_rate.initial,
-                )
+                self.optimizer = torch.optim.RMSprop(self.model.parameters(), lr=self.slim_cfg.learning_rate.initial)
             elif self.slim_cfg.optimizer == "adam":
-                self.optimizer = torch.optim.Adam(
-                    self.model.parameters(),
-                    lr=self.slim_cfg.learning_rate.initial,
-                )  # network/fnet/layer2/layer_with_weights-0/norm3/gamma/.ATTRIBUTES/VARIABLE_VALUE
+                self.optimizer = torch.optim.Adam(self.model.parameters(), r=self.slim_cfg.learning_rate.initial)  
+                # network/fnet/layer2/layer_with_weights-0/norm3/gamma/.ATTRIBUTES/VARIABLE_VALUE
             else:
                 raise AssertionError("only rmsprop/adam supported")
 
@@ -448,15 +443,11 @@ class Experiment:
 
             sample_data_t0, sample_data_t1, _, meta_data = self.mask_gt_renderer(full_train_data)
 
-            pred_fw, _ = self.train_one_step(
-                sample_data_t0,
-                sample_data_t1,
-                train_summaries,
-            )
+            # Train one step
+            pred_fw, _ = self.train_one_step(sample_data_t0, sample_data_t1, train_summaries)
 
-            if self.debug_mode or (
-                (self.global_step % self.cfg.logging.img_log_interval) == 0
-            ): # logging
+            # Logging
+            if self.debug_mode or ((self.global_step % self.cfg.logging.img_log_interval) == 0): 
                 log_flow_image(
                     train_writer,
                     self.cfg,
@@ -483,23 +474,28 @@ class Experiment:
                     self.global_step,
                     dynamicness_bev[:, None, :, :],
                 )
-            if self.global_step % self.slim_cfg.iterations.full_eval_every == 0 or self.debug_mode: # evaluation
+
+            # Evaluation
+            if self.global_step % self.slim_cfg.iterations.full_eval_every == 0 or self.debug_mode: 
                 max_train_eval_iter = self.cfg.validation.num_val_on_train_steps
                 max_val_eval_iter = self.cfg.validation.num_val_steps
+                
                 if self.debug_mode:
                     max_train_eval_iter = 5
                     max_val_eval_iter = 5
                     print("Warning: EVAL ON SUPER FEW SAMPLES")
+                
                 if isinstance(self.val_on_train_loader.dataset, KittiRawDataset):
                     print(f"Skipping validation on {self.val_on_train_loader.dataset.__class__.__name__}: No GT available!")
                 else:
                     self.eval_model("train", self.val_on_train_loader, max_train_eval_iter)
+                
                 self.eval_model("valid", self.val_loader, max_val_eval_iter)
                 self.model.train()
-                torch.save(
-                    self.model.state_dict(),
-                    self.checkpoint_dir.joinpath(f"{self.global_step}.pth"),
-                )
+                
+                # Save checkpoint
+                torch.save(self.model.state_dict(), self.checkpoint_dir.joinpath(f"{self.global_step}.pth"))
+            
             if self.debug_mode and self.global_step > 3:
                 break
 

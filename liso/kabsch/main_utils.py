@@ -248,17 +248,9 @@ def get_ignored_objects_from_ignore_mask(
     return obj_must_be_ignored
 
 
-def get_network_input_pcls(
-    cfg: Dict[str, Any],
-    sample_data_t0: Dict[str, torch.FloatTensor],
-    time_key: str,
-    to_device=None,
-) -> List[torch.FloatTensor]:
-    net_inputs_pcl_key = (
-        f"pcl_full_w_ground_{time_key}"
-        if cfg.data.use_ground_for_network
-        else f"pcl_full_no_ground_{time_key}"
-    )
+def get_network_input_pcls(cfg: Dict[str, Any], sample_data_t0: Dict[str, torch.FloatTensor], time_key: str, to_device=None) -> List[torch.FloatTensor]:
+    net_inputs_pcl_key = (f"pcl_full_w_ground_{time_key}" if cfg.data.use_ground_for_network else f"pcl_full_no_ground_{time_key}")
+    
     if to_device:
         return [el.to(to_device) for el in sample_data_t0[net_inputs_pcl_key]]
     else:
@@ -324,23 +316,20 @@ def log_bce_loss_img(cfg, desc, writer, global_step, loss_img):
     )
 
 
-def get_datasets(
-    cfg,
-    fast_test,
-    target="object",
-    path_to_augmentation_db: str = None,
-    path_to_mined_boxes_db: str = None,
-    sv_finetuning_cfg: Dict = None,
-    shuffle_validation=False,
-    need_flow_during_training: bool = True,
-):
+def get_datasets(cfg, fast_test, target="object", path_to_augmentation_db: str = None, path_to_mined_boxes_db: str = None,
+                 sv_finetuning_cfg: Dict = None, shuffle_validation=False, need_flow_during_training: bool = True):
+    
     prefetch_args = {}
     num_workers = cfg.data.num_workers
+    
     if sv_finetuning_cfg is not None:
         num_train_samples = sv_finetuning_cfg.num_samples
     else:
         num_train_samples = None
+    
     if cfg.data.source == "nuscenes":
+        raise NotImplementedError(cfg.data.source)
+        """
         train_loader, train_dataset = get_nuscenes_train_dataset(
             cfg,
             use_geom_augmentation=cfg.data.augmentation.active,
@@ -370,6 +359,7 @@ def get_datasets(
         val_loader = get_nuscenes_val_dataset(
             cfg, use_skip_frames="never", size=None, shuffle=shuffle_validation
         )
+        """
     elif cfg.data.source == "av2":
         train_loader, train_dataset = get_av2_train_dataset(
             cfg,
@@ -400,6 +390,7 @@ def get_datasets(
         val_loader = get_av2_val_dataset(
             cfg, use_skip_frames="never", size=None, shuffle=shuffle_validation
         )
+    
     elif cfg.data.source == "waymo":
         train_loader, train_dataset = get_waymo_train_dataset(
             cfg,
@@ -430,6 +421,7 @@ def get_datasets(
         val_loader = get_waymo_val_dataset(
             cfg, use_skip_frames="never", size=None, shuffle=shuffle_validation
         )
+    
     elif cfg.data.source == "kitti":
         train_loader, train_dataset = get_kitti_train_dataset(
             cfg,
@@ -461,6 +453,7 @@ def get_datasets(
         val_loader, _ = get_kitti_val_dataset(
             cfg, size=None, target=target, shuffle=shuffle_validation
         )
+    
     elif cfg.data.source == "tartu":
         train_loader, train_dataset = get_tartu_train_dataset(
             cfg,

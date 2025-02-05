@@ -177,21 +177,23 @@ class TartuRawDataset(LidarDataset):
         return samples_in_sequence
 
     def __getitem__(self, index):
-        self.initialize_loader_saver_if_necessary()
+        #self.initialize_loader_saver_if_necessary()
         self.initialize_dbs_if_necessary()
 
-        # load sample
+        # Load sample
         fname = str(self.sample_files[index], encoding="utf-8")
         sample_content = self.loader_saver_helper.load_sample(fname, np.load, allow_pickle=True).item()
 
+        # Drop lidar intensity if 'use_lidar_intensity' is set to false
         if not self.cfg.data.use_lidar_intensity:
             self.drop_intensities_from_pcls_in_sample(sample_content)
 
         if self.for_tracking:
-            src_key = "t0"
-            target_key = "t1"
-            src_trgt_time_delta_s = 0.1
-            self.drop_unused_timed_keys_from_sample(sample_content, "foo", "bar", "baz")
+            #src_key = "t0"
+            #target_key = "t1"
+            #src_trgt_time_delta_s = 0.1
+            #self.drop_unused_timed_keys_from_sample(sample_content, "foo", "bar", "baz")
+            raise ValueError("tracking not available")
         else:
             src_key, target_key, delete_target_key, src_trgt_time_delta_s = self.select_time_keys()
             self.drop_unused_timed_keys_from_sample(sample_content, src_key, target_key, delete_target_key)
@@ -200,13 +202,8 @@ class TartuRawDataset(LidarDataset):
         add_lidar_rows_to_kitti_sample(sample_content, time_keys=(src_key, target_key))
         sample_content = self.drop_points_on_kitti_vehicle(sample_content, src_key, target_key)
 
-        # restructure_sample
-        sample_content = self.move_keys_to_subdict(
-            sample_content,
-            move_these_keys=("kiss_",),
-            subdict_target_key="kiss_icp",
-            drop_substr_from_moved_keys="kiss_",
-        )
+        # Restructure_sample
+        sample_content = self.move_keys_to_subdict(sample_content, move_these_keys=("kiss_",), subdict_target_key="kiss_icp", drop_substr_from_moved_keys="kiss_")
 
         sample_content = self.move_keys_to_subdict(sample_content)
         self.add_reverse_odometry_to_sample(sample_content)
@@ -245,26 +242,12 @@ class TartuRawDataset(LidarDataset):
                 sample_data_tb = {"gt": {}}
 
             for gt_source in {"gt", self.cfg.data.flow_source}:
-                self.drop_unused_timed_keys_from_sample(
-                    sample_data_ta[gt_source],
-                    "ta",
-                    "tb",
-                    "t2",  # stuff will have been remapped
-                )
+                #t2 has been rempped
+                self.drop_unused_timed_keys_from_sample(sample_data_ta[gt_source], "ta", "tb", "t2")
+                #t0 has been rempped
+                self.drop_unused_timed_keys_from_sample(sample_data_tb[gt_source], "ta", "tb", "t0")
 
-                self.drop_unused_timed_keys_from_sample(
-                    sample_data_tb[gt_source],
-                    "ta",
-                    "tb",
-                    "t0",  # stuff will have been remapped
-                )
-
-            return (
-                recursive_npy_dict_to_torch(sample_data_ta),
-                recursive_npy_dict_to_torch(sample_data_tb),
-                {},
-                meta,
-            )
+            return recursive_npy_dict_to_torch(sample_data_ta), recursive_npy_dict_to_torch(sample_data_tb), {}, meta
 
         else:
             sample_data_ta = self.assemble_sample_data(deepcopy(sample_content), src_key, target_key, src_trgt_time_delta_s)
@@ -334,18 +317,16 @@ def get_tartu_train_dataset(
         path_to_mined_boxes_db=path_to_mined_boxes_db,
         need_flow=need_flow_during_training,
     )
+    
     if path_to_mined_boxes_db is not None:
         sample_file_stems = [Path(str(sf, encoding="utf-8")).stem for sf in train_dataset.sample_files]
-        weighted_random_sampler = (
-            get_weighted_random_sampler_dropping_samples_without_boxes(
-                path_to_mined_boxes_db,
-                extra_loader_kwargs,
-                train_dataset,
-                sample_file_stems,
-            )
-        )
-
+        weighted_random_sampler = get_weighted_random_sampler_dropping_samples_without_boxes(path_to_mined_boxes_db,
+                                                                                              extra_loader_kwargs,
+                                                                                              train_dataset,
+                                                                                              sample_file_stems)
+                                
         extra_loader_kwargs["sampler"] = weighted_random_sampler
+    
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         pin_memory=True,

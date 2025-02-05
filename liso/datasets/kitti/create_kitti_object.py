@@ -37,30 +37,35 @@ def get_kitti_filenames_for_sample(
     map_result = map_file_content[map_id].split(" ")
     raw_frame_idx = map_result[2]
     nbr_digits = len(raw_frame_idx)
+
     assert raw_frame_idx == ("%%0%dd" % nbr_digits) % int(raw_frame_idx)
     if into_past:
         if int(raw_frame_idx) + 1 < hist_size:
             return None  # not enough history recorded for this event
-    raw_dir = os.path.join(
-        kitti_raw_base_dir, map_result[0], map_result[1], "velodyne_points", "data"
-    )
+    raw_dir = os.path.join(kitti_raw_base_dir, map_result[0], map_result[1], "velodyne_points", "data")
+
     past_pcl_binary_filenames = [
         os.path.join(raw_dir, ("%%0%dd.bin" % nbr_digits) % i)
         for i in range(int(raw_frame_idx) + 1 - hist_size, int(raw_frame_idx) + 1)
     ]
+
     future_pcl_binary_filenames = [
         os.path.join(raw_dir, ("%%0%dd.bin" % nbr_digits) % i)
         for i in range(int(raw_frame_idx), int(raw_frame_idx) + hist_size)
     ]
+
     assert future_pcl_binary_filenames[0] == past_pcl_binary_filenames[-1], (
         future_pcl_binary_filenames,
         past_pcl_binary_filenames,
     )
+
     if into_past:
         pcl_binary_filenames = past_pcl_binary_filenames
     else:
         pcl_binary_filenames = future_pcl_binary_filenames
+
     assert len(pcl_binary_filenames) == hist_size
+    
     for pcl_binary_filename in pcl_binary_filenames:
         if not os.path.exists(pcl_binary_filename):
             print(
@@ -150,21 +155,17 @@ def main():
         for mmdet_sample_idx in tqdm(range(len(kitti_ds))):
             data_infos = kitti_ds.get_data_info(mmdet_sample_idx)
             del mmdet_sample_idx
-            (
-                kitti_pcl,
-                _,
-                is_ground,
-            ) = load_kitti_pcl_image_projection_get_ground_label(
-                data_infos["pts_filename"], kitti_desc="object"
-            )
+
+            kitti_pcl, _, is_ground  = load_kitti_pcl_image_projection_get_ground_label(data_infos["pts_filename"], kitti_desc="object")
+
             assert (
                 data_infos["pts_filename"] not in processed_velo_files
             ), f"processed the same sample twice - please fix and delete {kitti_object_target_dir}"
+
             processed_velo_files.add(data_infos["pts_filename"])
 
-            sample_name = (
-                dataset_category + "_" + str(data_infos["sample_idx"]).zfill(6)
-            )
+            sample_name = (dataset_category + "_" + str(data_infos["sample_idx"]).zfill(6))
+
             data_dict = {
                 "pcl_t0": kitti_pcl.astype(np.float32),
                 "is_ground_t0": is_ground,
@@ -211,23 +212,13 @@ def main():
                     into_past=False,
                 )
                 if raw_pcl_fnames is not None:
-                    (
-                        pcl_must_have_equal_shape_to_pcl_t0,
-                        _,
-                        _,
-                    ) = load_kitti_pcl_image_projection_get_ground_label(
-                        raw_pcl_fnames[0], kitti_desc="raw"
-                    )
+                    pcl_must_have_equal_shape_to_pcl_t0, _, _, = load_kitti_pcl_image_projection_get_ground_label(raw_pcl_fnames[0], kitti_desc="raw")
+
                     assert (
                         pcl_must_have_equal_shape_to_pcl_t0.shape == kitti_pcl.shape
                     ), "pcl shape mismatch - probably pcl_t1 is not the next frame!"
-                    (
-                        kitti_pcl_t1,
-                        _,
-                        is_ground_t1,
-                    ) = load_kitti_pcl_image_projection_get_ground_label(
-                        raw_pcl_fnames[1], kitti_desc="raw"
-                    )
+                    kitti_pcl_t1, _, is_ground_t1 = load_kitti_pcl_image_projection_get_ground_label(raw_pcl_fnames[1], kitti_desc="raw")
+                    
                     data_dict["pcl_t1"] = kitti_pcl_t1.astype(np.float32)
                     data_dict["is_ground_t1"] = is_ground_t1
                 else:

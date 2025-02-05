@@ -98,9 +98,8 @@ class FlowClusterDetector(torch.nn.Module):
         point_flow = sample_data_ta[self.cfg.data.flow_source]["flow_ta_tb"]
         odom_ta_tb = sample_data_ta[self.cfg.data.odom_source]["odom_ta_tb"]
 
-        nonrigid_bev_flow_threshold = (
-            sample_data_ta["src_trgt_time_delta_s"] * self.min_residual_flow_thresh_mps
-        )
+        nonrigid_bev_flow_threshold = (sample_data_ta["src_trgt_time_delta_s"] * self.min_residual_flow_thresh_mps)
+
         if is_batched:
             pcl_is_valid = sample_data_ta["pcl_ta"]["pcl_is_valid"]
         else:
@@ -112,10 +111,7 @@ class FlowClusterDetector(torch.nn.Module):
             odom_ta_tb = odom_ta_tb[None]
             nonrigid_bev_flow_threshold = nonrigid_bev_flow_threshold[None]
 
-        (
-            bev_dynamicness,
-            bev_nonrigid_flow,
-        ) = get_bev_dynamic_flow_map_from_pcl_flow_and_odom(
+        (bev_dynamicness, bev_nonrigid_flow) = get_bev_dynamic_flow_map_from_pcl_flow_and_odom(
             pcl_is_valid=pcl_is_valid,
             pcl=pcl,
             pillar_coors=pillar_coors,
@@ -124,15 +120,9 @@ class FlowClusterDetector(torch.nn.Module):
             target_shape=self.bev_img_grid_size,
             return_nonrigid_bev_flow=True,
         )
-        bev_dynamicness_u8_cpu_npy = (
-            (bev_dynamicness * 255.0).to(torch.uint8).cpu()
-        ).numpy()
-        valid_mask_cpu_npy = (
-            (
-                torch.squeeze(bev_dynamicness, dim=-1)
-                > nonrigid_bev_flow_threshold[..., None, None]
-            ).cpu()
-        ).numpy()
+
+        bev_dynamicness_u8_cpu_npy = ((bev_dynamicness * 255.0).to(torch.uint8).cpu()).numpy()
+        valid_mask_cpu_npy = ((torch.squeeze(bev_dynamicness, dim=-1) > nonrigid_bev_flow_threshold[..., None, None]).cpu()).numpy()
 
         assert len(valid_mask_cpu_npy.shape) == 3, valid_mask_cpu_npy.shape
         # num_clusters = 20
@@ -140,32 +130,19 @@ class FlowClusterDetector(torch.nn.Module):
         slic_img_segments = []
         batched_pred_boxes = []
 
-        # flow_rgb = (
-        #     pytorch_create_flow_image(bev_nonrigid_flow[..., :2].permute(0, 3, 1, 2))
-        #     .permute(0, 2, 3, 1)
-        #     .cpu()
-        #     .numpy()
-        #     * 255
-        # ).astype(np.uint8)
+        # flow_rgb = (pytorch_create_flow_image(bev_nonrigid_flow[..., :2].permute(0, 3, 1, 2)).permute(0, 2, 3, 1).cpu().numpy() * 255).astype(np.uint8)
         # Image.fromarray(flow_rgb[batch_idx]).save("debug_imgs/nonrigid_flow.png")
         box_target_device = pcl.device
         for batch_idx, valid_mask in enumerate(valid_mask_cpu_npy):
             if np.count_nonzero(valid_mask) > 1:
-                flow_similarity_importance = (
-                    2.0  # problem: dynamic flow is not smooth, should be Kabsched!
-                )
+                flow_similarity_importance = 2.0  # problem: dynamic flow is not smooth, should be Kabsched!
+                
                 dynamic_coors = self.grid_pts_3d[valid_mask]
-                dynamic_flow = flow_similarity_importance * (
-                    bev_nonrigid_flow[batch_idx].detach().cpu().numpy()[valid_mask]
-                )
+                dynamic_flow = flow_similarity_importance * bev_nonrigid_flow[batch_idx].detach().cpu().numpy()[valid_mask]
+                
                 cluster_coords = np.concatenate([dynamic_coors, dynamic_flow], axis=-1)
-                db = DBSCAN(
-                    eps=1.0,
-                    min_samples=5,
-                    metric="euclidean",
-                    algorithm="auto",
-                    n_jobs=1,
-                ).fit(cluster_coords)
+                db = DBSCAN(eps=1.0, min_samples=5, metric="euclidean", algorithm="auto", n_jobs=1).fit(cluster_coords)
+
                 labels = db.labels_
                 labels = np.where(labels >= 0, labels + 1, 0)
                 bev_labels = np.zeros_like(valid_mask, dtype=labels.dtype)
@@ -174,41 +151,22 @@ class FlowClusterDetector(torch.nn.Module):
                 slic_img_segments.append(bev_labels)
 
                 clustered_regions = regionprops(bev_labels)
-                box_center_pix = np.clip(
-                    np.array([el.centroid for el in clustered_regions]).astype(np.int),
-                    a_min=0,
-                    a_max=min(self.grid_pts_3d.shape[:-1]) - 1,
-                )
-                rot = torch.from_numpy(
-                    np.array([el.orientation for el in clustered_regions])[..., None]
-                )
-                box_len = np.array([el.axis_major_length for el in clustered_regions])[
-                    ..., None
-                ]
-                box_width = np.array(
-                    [el.axis_minor_length for el in clustered_regions]
-                )[..., None]
-                box_dims = (
-                    torch.from_numpy(np.concatenate([box_len, box_width], axis=-1))
-                    * 1.0
-                    / self.bev_pixel_per_meter_resolution
-                )
+                box_center_pix = np.clip(np.array([el.centroid for el in clustered_regions]).astype(np.int), a_min=0, a_max=min(self.grid_pts_3d.shape[:-1]) - 1)
+
+                rot = torch.from_numpy(np.array([el.orientation for el in clustered_regions])[..., None])
+                box_len = np.array([el.axis_major_length for el in clustered_regions])[..., None]
+                box_width = np.array([el.axis_minor_length for el in clustered_regions])[..., None]
+                box_dims = (torch.from_numpy(np.concatenate([box_len, box_width], axis=-1)) * 1.0 / self.bev_pixel_per_meter_resolution)
+
                 if box_center_pix.size > 0:
-                    box_center_m = torch.from_numpy(
-                        self.grid_pts_3d[box_center_pix[..., 0], box_center_pix[..., 1]]
-                    )
+                    box_center_m = torch.from_numpy(self.grid_pts_3d[box_center_pix[..., 0], box_center_pix[..., 1]])
                 else:
                     box_center_m = torch.zeros_like(box_dims)
+
                 probs = torch.ones_like(rot)
-                pred_boxes = Shape(
-                    pos=box_center_m,
-                    dims=box_dims,
-                    rot=rot,
-                    probs=probs,
-                ).to(box_target_device)
-                assert (
-                    pred_boxes.dims.shape[-1] == 2
-                ), "otherwise box fitting will use bad box size from clustering!"
+                pred_boxes = Shape(pos=box_center_m, dims=box_dims, rot=rot,probs=probs,).to(box_target_device)
+
+                assert pred_boxes.dims.shape[-1] == 2, "otherwise box fitting will use bad box size from clustering!"
                 (
                     num_pts_in_box,
                     fitted_box_z,

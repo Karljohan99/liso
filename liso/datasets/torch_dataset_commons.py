@@ -467,52 +467,37 @@ class LidarDataset(torch.utils.data.Dataset):
         self.loader_saver_helper = None  # need a seperate connection here
 
         assert self.mode in ("train", "val", "test"), self.mode
+
         if shuffle:
             # we only shuffle the val dataset so that we get the same samples during
             # online validation
-            assert self.mode in (
-                "val",
-                "test",
-            ), "please shuffle train using loader, not dataset!"
-        assert not (
-            (self.mode == "val" or self.mode == "test") and self.use_geom_augmentation
-        ), "we don't want to augment validation data"
+            assert self.mode in ("val", "test"), "please shuffle train using loader, not dataset!"
+
+        assert not ((self.mode == "val" or self.mode == "test") and self.use_geom_augmentation), "we don't want to augment validation data"
 
         if hasattr(cfg.data, "odom_source"):
-            assert self.cfg.data.odom_source in (
-                "kiss_icp",
-                "gt",
-            ), self.cfg.data.odom_source
+            assert self.cfg.data.odom_source in ("kiss_icp", "gt"), self.cfg.data.odom_source
 
         assert use_skip_frames in ("only", "never", "both"), use_skip_frames
+        
         if for_tracking:
-            assert (
-                use_skip_frames == "never"
-            ), "tracking and skipping breaks continuity of samples"
+            assert (use_skip_frames == "never"), "tracking and skipping breaks continuity of samples"
             assert not shuffle, "shuffling breaks continuity"
+        
         self.for_tracking = for_tracking
         self.data_use_skip_frames = use_skip_frames
 
-        (
-            self.bev_range_m_np,
-            self.img_grid_size_np,
-            self.bev_pixel_per_meter_res_np,
-            self.pcl_bev_center_coords_homog_np,
-            torch_tensors,
-        ) = get_bev_setup_params(cfg)
+        self.bev_range_m_np, self.img_grid_size_np, self.bev_pixel_per_meter_res_np, self.pcl_bev_center_coords_homog_np, torch_tensors = get_bev_setup_params(cfg)
 
         for param_name, param in torch_tensors.items():
             setattr(self, param_name, param)
 
         if self.cfg.data.limit_pillar_height:
-            self.height_range_m_np = np.array(
-                self.cfg.data.pillar_height_range_m, np.float32
-            )
+            self.height_range_m_np = np.array(self.cfg.data.pillar_height_range_m, np.float32)
         else:
             self.height_range_m_np = np.array([-np.inf, np.inf], np.float32)
-        self.centermaps_output_grid_size = get_centermaps_output_grid_size(
-            self.cfg, self.img_grid_size_np
-        )
+        
+        self.centermaps_output_grid_size = get_centermaps_output_grid_size(self.cfg, self.img_grid_size_np)
 
         if self.cfg.data.augmentation.boxes.active:
             self.box_augm_cfg = self.cfg.data.augmentation.boxes
@@ -704,23 +689,16 @@ class LidarDataset(torch.utils.data.Dataset):
 
     def kitti_extract_boxes_for_timestamp(self, sample_content, src_key):
         box_key = f"objects_{src_key}"
-        if (
-            box_key in sample_content["gt"]
-            and sample_content["gt"][box_key]["poses"].shape[0] > 0
-        ):
+        if (box_key in sample_content["gt"] and sample_content["gt"][box_key]["poses"].shape[0] > 0):
+
             objects = sample_content["gt"][box_key]
             sensor_T_box = objects["poses"]
             obj_dims = objects["size"]
             obj_pos_ta = sensor_T_box[:, 0:3, 3]
-            obj_rot_ta = np.stack(
-                [decompose_matrix(trafo)[2][2] for trafo in sensor_T_box],
-                axis=0,
-            )[..., None]
+            obj_rot_ta = np.stack([decompose_matrix(trafo)[2][2] for trafo in sensor_T_box], axis=0)[..., None]
             obj_probs_ta = np.ones_like(obj_rot_ta)
             obj_velo_ta = np.zeros_like(obj_probs_ta)
-            class_ids = self.get_label_idxs_from_label_name(objects["category"])[
-                ..., None
-            ]
+            class_ids = self.get_label_idxs_from_label_name(objects["category"])[..., None]
             gt_boxes_ta = Shape(
                 pos=obj_pos_ta,
                 dims=obj_dims,
@@ -1494,6 +1472,7 @@ class LidarDataset(torch.utils.data.Dataset):
             "t1": "t2",
             "t2": "t1",
         }  # gives you the key to delete for your chosen target frame
+        
         if self.mode == "train":
             if self.data_use_skip_frames == "only":
                 target_key = "t2"

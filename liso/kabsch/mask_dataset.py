@@ -72,47 +72,20 @@ class RecursiveDeviceMover(torch.nn.Module):
             "ignore_region_is_true_mask",
         ]
 
-    def forward(
-        self,
-        data_input,
-        need_sample_data_t0=True,
-        need_sample_data_t1=True,
-        need_augm_sample_data_t0=True,
-    ):
-        (
-            dataset_element_t0,
-            dataset_element_t1,
-            augmented_dataset_element_t0,
-            meta_data,
-        ) = data_input
+    def forward(self, data_input, need_sample_data_t0=True, need_sample_data_t1=True, need_augm_sample_data_t0=True):
+        dataset_element_t0, dataset_element_t1, augmented_dataset_element_t0, meta_data = data_input
+        
         if need_sample_data_t0:
-            dataset_element_t0 = recursive_device_mover_for_specific_keys(
-                dataset_element_t0,
-                self.dummy_device_indicator_param.device,
-                keys_to_move=self.needed_on_gpu,
-                key="",
-            )
+            dataset_element_t0 = recursive_device_mover_for_specific_keys(dataset_element_t0, self.dummy_device_indicator_param.device,
+                                                                          keys_to_move=self.needed_on_gpu, key="")
         # mem_bytes = get_bytes(dataset_element_t0)
         # mb = mem_bytes * 1e-6
         # print("Moved ", {mb}, " mb.")
         if need_sample_data_t1:
-            dataset_element_t1 = recursive_device_mover_for_specific_keys(
-                dataset_element_t1,
-                self.dummy_device_indicator_param.device,
-                keys_to_move=self.needed_on_gpu,
-                key="",
-            )
+            dataset_element_t1 = recursive_device_mover_for_specific_keys(dataset_element_t1, self.dummy_device_indicator_param.device,
+                                                                          keys_to_move=self.needed_on_gpu, key="")
         if need_augm_sample_data_t0:
-            augmented_dataset_element_t0 = recursive_device_mover_for_specific_keys(
-                augmented_dataset_element_t0,
-                self.dummy_device_indicator_param.device,
-                keys_to_move=self.needed_on_gpu,
-                key="",
-            )
+            augmented_dataset_element_t0 = recursive_device_mover_for_specific_keys(augmented_dataset_element_t0, self.dummy_device_indicator_param.device,
+                                                                                    keys_to_move=self.needed_on_gpu, key="")
 
-        return (
-            dataset_element_t0,
-            dataset_element_t1,
-            augmented_dataset_element_t0,
-            meta_data,
-        )
+        return dataset_element_t0, dataset_element_t1, augmented_dataset_element_t0, meta_data

@@ -7,50 +7,32 @@ from torch import nn
 
 
 class MovingAverageThreshold(nn.Module):
-    def __init__(
-        self,
-        num_train_samples: int,
-        num_moving: int,
-        num_still=None,
-        resolution: int = 100000,
-        start_value: float = 0.5,
-        value_range: Tuple[float, float] = (0.0, 1.0),
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, num_train_samples: int, num_moving: int, num_still=None, resolution: int = 100000, 
+                 start_value: float = 0.5, value_range: Tuple[float, float] = (0.0, 1.0), *args, **kwargs):
+
         super().__init__(*args, **kwargs)
         self.value_range = (value_range[0], value_range[1] - value_range[0])
         self.resolution = resolution
         self.num_moving = num_moving
         self.num_still = num_still
-        self.register_buffer(
-            "start_value", torch.tensor(start_value, dtype=torch.float)
-        )
+        self.register_buffer("start_value", torch.tensor(start_value, dtype=torch.float))
         self.total = num_moving
+        
         if num_still is not None:
             self.total += num_still
+        
         assert num_train_samples > 0, num_train_samples
+        
         avg_points_per_sample = self.total / num_train_samples
-        update_weight = 1.0 / min(
-            2.0 * self.total, 5_000.0 * avg_points_per_sample
-        )  # update buffer roughly every 5k iterations, so 5k * points per sample for denominator
-        self.register_buffer(
-            "update_weight", torch.tensor(update_weight, dtype=torch.double)
-        )
+        update_weight = 1.0 / min(2.0 * self.total, 5_000.0 * avg_points_per_sample)  # update buffer roughly every 5k iterations, so 5k * points per sample for denominator
+        self.register_buffer("update_weight", torch.tensor(update_weight, dtype=torch.double))
 
         if num_still is not None:
-            self.register_buffer(
-                "moving_counter", torch.tensor(self.num_moving, dtype=torch.long)
-            )
-            self.register_buffer(
-                "still_counter", torch.tensor(self.num_still, dtype=torch.long)
-            )
+            self.register_buffer("moving_counter", torch.tensor(self.num_moving, dtype=torch.long))
+            self.register_buffer("still_counter", torch.tensor(self.num_still, dtype=torch.long))
 
         self.register_buffer("bias_counter", torch.zeros((), dtype=torch.double))
-        self.register_buffer(
-            "moving_average_importance",
-            torch.zeros((self.resolution,), dtype=torch.float),
-        )
+        self.register_buffer("moving_average_importance", torch.zeros((self.resolution,), dtype=torch.float))
 
     def value(self):
         if self.bias_counter > 0.0:
@@ -59,23 +41,14 @@ class MovingAverageThreshold(nn.Module):
             return self.start_value
 
     def _compute_bin_idxs(self, dynamicness_scores):
-        idxs = (
-            (dynamicness_scores - self.value_range[0])
-            * self.resolution
-            / self.value_range[1]
-        ).to(torch.int)
+        idxs = ((dynamicness_scores - self.value_range[0]) * self.resolution / self.value_range[1]).to(torch.int)
         assert (idxs <= self.resolution).all()
         assert (idxs >= 0).all()
         idxs = torch.clamp(idxs, max=self.resolution - 1)
         assert (idxs < self.resolution).all()
         return idxs
 
-    def _compute_improvements(
-        self,
-        epes_stat_flow,
-        epes_dyn_flow,
-        moving_mask,
-    ):
+    def _compute_improvements(self, epes_stat_flow, epes_dyn_flow, moving_mask):
         if self.num_still is None:
             assert moving_mask is None
             improvements = epes_stat_flow - epes_dyn_flow

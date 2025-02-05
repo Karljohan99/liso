@@ -20,24 +20,17 @@ class Shape:
     _numeric_float_keys = ("pos", "dims", "rot", "probs", "velo")
     _numeric_int_keys = ("class_id", "difficulty")
 
-    def __init__(
-        self,
-        pos,
-        dims,
-        rot,
-        probs,
-        velo=None,
-        valid=None,
-        class_id=None,
-        difficulty=None,
-    ) -> None:
+    def __init__(self, pos, dims, rot, probs, velo=None, valid=None, class_id=None, difficulty=None) -> None:
+
         assert pos.shape[-1] in (1, 2, 3), pos.shape
         assert dims.shape[-1] in (1, 2, 3), dims.shape
         assert probs.shape[-1] == 1, probs.shape
+
         self.pos = pos
         self.dims = dims
         self.rot = rot
         self.probs = probs
+
         if valid is not None:
             self.valid = valid
         elif valid is None and torch.is_tensor(probs):
@@ -45,9 +38,7 @@ class Shape:
         elif valid is None and isinstance(probs, np.ndarray):
             self.valid = np.ones_like(probs[..., 0], dtype=bool)
         else:
-            raise NotImplementedError(
-                "valid is not None but type of probs is unhandeled"
-            )
+            raise NotImplementedError("valid is not None but type of probs is unhandeled")
 
         if velo is not None:
             assert velo.shape[-1] in (1, 2, 3), velo.shape
