@@ -96,8 +96,6 @@ def main():
 
     target_dir = args.target_dir / "tartu_filtered/train"
 
-    #target_dir.mkdir(parents=True, exist_ok=True)
-
     with open(args.filtered_data_file) as file:
         lines = file.readlines()
 
@@ -132,7 +130,6 @@ def main():
             print(csv_file)
             continue
 
-        tartu_pcd_files = sorted([lidar_data / pcd for pcd in os.listdir(lidar_data)])
         tartu_transfroms = TartuRawTransfroms(csv_file)
 
         kiss_config = KISSConfig()
@@ -143,21 +140,21 @@ def main():
 
         fnames = []
 
-        for i, seq_idx in enumerate(tqdm(seq_idxs[:-2], leave=False)):
-            if seq_idx + 1 != seq_idxs[i+1] or seq_idx + 2 != seq_idxs[i+2]:
-                skipped_sequences += 1
-                continue
+        for seq_idx in tqdm(seq_idxs[:-2], leave=False):
 
             if seq_idx not in tartu_transfroms.transfroms or seq_idx + 1 not in tartu_transfroms.transfroms or seq_idx + 2 not in tartu_transfroms.transfroms:
                  skipped_sequences += 1
                  continue
-
-            pcl_t0, is_ground_t0 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[i])
+            
+            t0_pcd_file = str(seq_idx).zfill(6) + ".pcd"
+            pcl_t0, is_ground_t0 = load_tartu_pcl_image_projection_get_ground_label(lidar_data / t0_pcd_file)
 
             timestamps = get_timestamps(pcl_t0).astype(np.float64)
-            odometry.register_frame(np.copy(pcl_t0[:, :3]).astype(np.float64), timestamps=timestamps, )
-            pcl_t1, is_ground_t1 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[i + 1])
-            pcl_t2, is_ground_t2 = load_tartu_pcl_image_projection_get_ground_label(tartu_pcd_files[i + 2])
+            odometry.register_frame(np.copy(pcl_t0[:, :3]).astype(np.float64), timestamps=timestamps)
+            t1_pcd_file = str(seq_idx+1).zfill(6) + ".pcd"
+            t2_pcd_file = str(seq_idx+2).zfill(6) + ".pcd"
+            pcl_t1, is_ground_t1 = load_tartu_pcl_image_projection_get_ground_label(lidar_data / t1_pcd_file)
+            pcl_t2, is_ground_t2 = load_tartu_pcl_image_projection_get_ground_label(lidar_data / t2_pcd_file)
 
             map_T_bl_t0 = tartu_transfroms.transfroms[seq_idx]
             map_T_bl_t1 = tartu_transfroms.transfroms[seq_idx + 1]
