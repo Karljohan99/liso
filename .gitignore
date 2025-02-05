@@ -1,5 +1,9 @@
 __pycache__/
 data/
 docker/old/
+visualize/camera_imgs
+visualize/pcd_files
+visualize/processed_data
+visualize/slim_static_flow
 *.sif
 *.tar
