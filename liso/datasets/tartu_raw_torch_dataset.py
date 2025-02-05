@@ -177,7 +177,7 @@ class TartuRawDataset(LidarDataset):
         return samples_in_sequence
 
     def __getitem__(self, index):
-        #self.initialize_loader_saver_if_necessary()
+        self.initialize_loader_saver_if_necessary()
         self.initialize_dbs_if_necessary()
 
         # Load sample
@@ -204,8 +204,8 @@ class TartuRawDataset(LidarDataset):
 
         # Restructure_sample
         sample_content = self.move_keys_to_subdict(sample_content, move_these_keys=("kiss_",), subdict_target_key="kiss_icp", drop_substr_from_moved_keys="kiss_")
-
         sample_content = self.move_keys_to_subdict(sample_content)
+
         self.add_reverse_odometry_to_sample(sample_content)
 
         if self.need_flow and self.training_target == "object":
@@ -222,17 +222,16 @@ class TartuRawDataset(LidarDataset):
             if self.mined_boxes_db is not None:
                 self.load_add_mined_boxes_to_sample_content(Path(fname).stem, sample_content, )
 
-        if (
-            not self.for_tracking  # WE CANT AUGMENT WHEN TRACKING!
-            and not self.pure_inference_mode
-            and self.use_geom_augmentation
-            and self.cfg.data.augmentation.active
-        ):
+        # Augment data
+        if (not self.for_tracking  # WE CANT AUGMENT WHEN TRACKING!
+            and not self.pure_inference_mode and self.use_geom_augmentation and self.cfg.data.augmentation.active):
+
             self.augment_sample_content(sample_content, src_key, target_key, "tartu")
 
         meta = {"sample_id": sample_content["name"]}
         del sample_content["name"]
 
+        # Assemble data sample
         if self.for_tracking:
             sample_data_ta = self.assemble_sample_data(deepcopy(sample_content), "t0", "t1", src_trgt_time_delta_s)
 
@@ -261,6 +260,7 @@ class TartuRawDataset(LidarDataset):
         if self.verbose:
             print("Loaded sample: {0}".format(Path(fname).stem))
 
+        # Convert arrays to torch tensors
         sample_data_ta = recursive_npy_dict_to_torch(sample_data_ta)
         if self.cfg.loss.supervised.centermaps.active:
             sample_data_ta["gt"].update(self.get_motion_based_centermaps(sample_data_ta))
@@ -276,12 +276,7 @@ class TartuRawDataset(LidarDataset):
 
         return (sample_data_ta, sample_data_tb, augm_sample_ta, meta,)
 
-    def extract_boxes_for_timestamp(
-        self,
-        _sample_content: Dict[str, np.ndarray],
-        _src_key: str,
-        _target_key: str,
-    ) -> Shape:
+    def extract_boxes_for_timestamp(self, _sample_content: Dict[str, np.ndarray], _src_key: str, _target_key: str) -> Shape:
         # Tartu Raw has no objects
         return Shape.createEmpty(), np.array([], dtype=str)
 
@@ -299,10 +294,12 @@ def get_tartu_train_dataset(
     target="flow",
     path_to_augmentation_db: str = None,
     path_to_mined_boxes_db: str = None,
-    need_flow_during_training: bool = True,
-):  
+    need_flow_during_training: bool = True
+    ):
+
     extra_loader_kwargs = {"shuffle": shuffle}
 
+    # Initialize tartu raw dataset
     train_dataset = TartuRawDataset(
         shuffle=False,  # only needed for val datasets
         mode="train",
@@ -327,6 +324,7 @@ def get_tartu_train_dataset(
                                 
         extra_loader_kwargs["sampler"] = weighted_random_sampler
     
+    # Create torch dataloader
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         pin_memory=True,
@@ -338,7 +336,8 @@ def get_tartu_train_dataset(
     )
     return train_loader, train_dataset
 
-
+"""
+# For debugging
 def main():
     default_cfg_file = (
         Path(getsourcefile(lambda: 0)).parent.parent
@@ -361,3 +360,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""
