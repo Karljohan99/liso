@@ -159,7 +159,7 @@ class KittiTrackingDataset(LidarDataset):
             if KITTI_IGNORE_NON_MOVABLE_CLASSMAPPING[obj_category.lower()] is None:
                 cls_idx = UNKNOWN_CLASS_ID
             else:
-                simple_name = KITTI_MAP_TO_SIMPLE_CLASSES[obj_category]
+                simple_name = KITTI_MAP_TO_SIMPLE_CLASSES[obj_category.lower()]
                 cls_idx = self.class_name_to_idx_mapping[simple_name]
             label_idxs.append(cls_idx)
         return np.array(label_idxs).astype(np.int32)
