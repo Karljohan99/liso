@@ -112,18 +112,18 @@ def main():
     if not checkpoint_dir.exists():
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    cuda0 = torch.device("cuda:0")
+    cpu = torch.device("cpu")
 
-    recursive_device_mover = RecursiveDeviceMover(cfg).to(cuda0)
+    #recursive_device_mover = RecursiveDeviceMover(cfg).to(cuda0)
 
-    fwd_writer = SummaryWriter(log_dir.joinpath("fwd"))
-    fwd_writer.add_text("config", pretty_json(cfg), 0)
-    fwd_writer.flush()
+    #fwd_writer = SummaryWriter(log_dir.joinpath("fwd"))
+    #fwd_writer.add_text("config", pretty_json(cfg), 0)
+    #fwd_writer.flush()
 
     train_loader, _, val_loader, val_on_train_loader = get_datasets(cfg, fast_test, target="object", shuffle_validation=True, need_flow_during_training=False)
     val_cfg = cfg
 
-    box_predictor, optimizer, lr_scheduler, resume_from_step = get_network_optimizer_scheduler(cfg, device=cuda0, path_to_checkpoint=args.load_checkpoint, finetune=args.finetune)
+    box_predictor, optimizer, lr_scheduler, resume_from_step = get_network_optimizer_scheduler(cfg, device=cpu, path_to_checkpoint=args.load_checkpoint, finetune=args.finetune)
     box_predictor.train()
     train_iterator = iter(train_loader)
 
