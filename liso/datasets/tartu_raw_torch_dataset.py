@@ -148,12 +148,15 @@ class TartuRawDataset(LidarDataset):
         global_start_idx_of_sequence = int(np.sum(self.sequence_lens[:sequence_idx]))
         global_start_idx = global_start_idx_of_sequence + start_idx_in_sequence
         # global_end_idx = global_start_idx + sequence_length
+        
         chosen_samples = [LidarSample(
             idx=global_start_idx + idx,
             sample_name=str(self.per_seq_sample_paths[sequence_idx][start_idx_in_sequence + idx].stem),
             timestamp=0,
             full_path=str(self.per_seq_sample_paths[sequence_idx][start_idx_in_sequence + idx]))
             for idx in range(sequence_length)]
+        
+        print("CHOSESN SAMPLES", chosen_samples)
 
         return chosen_samples
 
@@ -169,6 +172,7 @@ class TartuRawDataset(LidarDataset):
         if sequence_idx >= len(self.sequence_lens):
             print("Ran out of sequences!")
             return None
+        
         samples_in_sequence = self.get_samples_for_sequence(
             sequence_idx=sequence_idx,
             start_idx_in_sequence=0,

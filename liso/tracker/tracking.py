@@ -596,44 +596,36 @@ def track_boxes_on_data_sequence(
         while num_successfull_tracks < min_num_boxes and time.time() < timeout_at:
             raw_boxes_db = {}
             visu_boxes_db = {}
-            trigger_gif_logging = (
-                writer is not None and num_tracked_sequences % log_freq == 0
-            )
-            trigger_img_logging = (
-                writer is not None and num_tracked_sequences % log_freq == 0
-            )
+
+            trigger_gif_logging = writer is not None and num_tracked_sequences % log_freq == 0
+            trigger_img_logging = writer is not None and num_tracked_sequences % log_freq == 0
+
             if trigger_gif_logging:
-                pcl_box_gif_summary = PCLBoxGifSummary(
-                    cfg,
-                    writer,
-                    img_grid_size=(1024, 1024),
-                    time_between_frames_s=time_between_frames_s,
-                    log_to_disk=log_gifs_to_disk,
-                )
+                pcl_box_gif_summary = PCLBoxGifSummary(cfg, writer, img_grid_size=(1024, 1024),
+                    time_between_frames_s=time_between_frames_s, log_to_disk=log_gifs_to_disk)
+                
             if dump_sequences_for_visu:
                 if len(visualize_these_sequences) == 0:
                     seq = None
                 else:
                     seq_id = visualize_these_sequences.pop()
-                    seq = dataset.get_consecutive_sample_idxs_for_sequence(
-                        dataset.get_scene_index_for_scene_name(seq_id),
-                    )
+                    seq = dataset.get_consecutive_sample_idxs_for_sequence(dataset.get_scene_index_for_scene_name(seq_id))
             else:
-                seq = dataset.get_consecutive_sample_idxs_for_sequence(
-                    num_tracked_sequences
-                )
+                seq = dataset.get_consecutive_sample_idxs_for_sequence(num_tracked_sequences)
+            
             if seq is None:
                 print("Ran out of sequences, stopping!")
                 break
+            
             dataset_idxs = [el.idx for el in seq]
+            
             if any(ds_idx in taboo_dataset_indexes for ds_idx in dataset_idxs):
                 num_sequences_visited = len(taboo_dataset_indexes)
-                print(
-                    f"Prevented revisiting of sequence! Visited {num_sequences_visited} sequences in total."
-                )
+                print(f"Prevented revisiting of sequence! Visited {num_sequences_visited} sequences in total.")
                 continue
             else:
                 taboo_dataset_indexes.update(dataset_idxs)
+            
             subset = torch.utils.data.Subset(dataset, dataset_idxs)
             prefetch_args = {}
 
@@ -648,16 +640,10 @@ def track_boxes_on_data_sequence(
                 **prefetch_args,
             )
 
-            tracker_box_matching_threshold = cfg.data.tracking_cfg.setdefault(
-                "track_matching_threshold_m", 1.0
-            )
+            tracker_box_matching_threshold = cfg.data.tracking_cfg.setdefault("track_matching_threshold_m", 1.0)
+            tracker_model_name = cfg.data.tracking_cfg.setdefault("tracker_model", "flow_tracker")
+            use_pred_future_box_poses_for_matching = cfg.data.tracking_cfg.setdefault("use_pred_future_box_poses_for_matching", True)
 
-            tracker_model_name = cfg.data.tracking_cfg.setdefault(
-                "tracker_model", "flow_tracker"
-            )
-            use_pred_future_box_poses_for_matching = cfg.data.tracking_cfg.setdefault(
-                "use_pred_future_box_poses_for_matching", True
-            )
             if tracker_model_name == "flow_tracker":
                 simple_tracker = FlowBasedBoxTracker(
                     use_propagated_boxes=use_pred_future_box_poses_for_matching,
@@ -742,30 +728,18 @@ def track_boxes_on_data_sequence(
                     
                     pred_boxes.valid = is_box_fully_visible_in_bev
                     if verbose:
-                        print(
-                            "Dropped ",
-                            torch.count_nonzero(~is_box_fully_visible_in_bev)
-                            .cpu()
-                            .numpy(),
-                            "/",
-                            pred_boxes.shape[0],
-                            " boxes outside of BEV at time ",
-                            time_idx,
-                        )
+                        print("Dropped ", torch.count_nonzero(~is_box_fully_visible_in_bev).cpu().numpy(), "/",
+                            pred_boxes.shape[0], " boxes outside of BEV at time ", time_idx)
+                        
                     pred_boxes = pred_boxes.drop_padding_boxes()
 
                 if pred_boxes.shape[0] > 0 and tracking_cfg.min_points_in_box > 0:
                     pred_boxes_for_num_points_filtering = pred_boxes.clone()
                     if pred_boxes.dims.shape[-1] == 2:
                         dummy_height = 2.0 * torch.ones_like(pred_boxes.dims[..., [0]])
-                        dummy_dims = torch.cat(
-                            [
-                                pred_boxes_for_num_points_filtering.dims,
-                                dummy_height,
-                            ],
-                            dim=-1,
-                        )
+                        dummy_dims = torch.cat([pred_boxes_for_num_points_filtering.dims, dummy_height], dim=-1)
                         pred_boxes_for_num_points_filtering.dims = dummy_dims
+                    
                     if pred_boxes.pos.shape[-1] == 2:
                         dummy_z_coord = -1.0 * torch.ones_like(
                             pred_boxes.dims[..., [0]]

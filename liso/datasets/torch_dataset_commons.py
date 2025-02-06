@@ -39,6 +39,8 @@ class LidarSample:
         self.timestamp = timestamp
         self.full_path = full_path
 
+    def __str__(self):
+        return f"{self.idx}: {self.sample_name}"
 
 KITTI_MOVABLE_CLASSES = ("car", "pedestrian", "cyclist")
 
