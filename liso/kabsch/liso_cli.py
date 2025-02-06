@@ -112,7 +112,8 @@ def main():
     if not checkpoint_dir.exists():
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    cuda0 = torch.device("cuda:0")
+    #cuda0 = torch.device("cuda:0")
+    cuda0 = torch.device("cpu")
 
     recursive_device_mover = RecursiveDeviceMover(cfg).to(cuda0)
 
