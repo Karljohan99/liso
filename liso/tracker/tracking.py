@@ -15,6 +15,7 @@ from liso.box_fitting.box_fitting import fit_2d_box_modest
 from liso.datasets.argoverse2.av2_torch_dataset import AV2Dataset
 from liso.datasets.kitti_object_torch_dataset import KittiObjectDataset
 from liso.datasets.kitti_raw_torch_dataset import KittiRawDataset
+from liso.datasets.tartu_raw_torch_dataset import TartuRawDataset
 from liso.datasets.kitti_tracking_torch_dataset import (
     KittiTrackingDataset,
     get_kitti_val_dataset,
@@ -2275,7 +2276,7 @@ def get_clean_train_dataset_single_batch(cfg, for_tracking=False, need_flow=True
             shuffle=False,
             need_flow=need_flow,
         )
-    if cfg.data.source == "av2":
+    elif cfg.data.source == "av2":
         train_dataset = AV2Dataset(
             mode="train",
             cfg=cfg,
@@ -2286,7 +2287,7 @@ def get_clean_train_dataset_single_batch(cfg, for_tracking=False, need_flow=True
             shuffle=False,
             need_flow=need_flow,
         )
-    if cfg.data.source == "waymo":
+    elif cfg.data.source == "waymo":
         train_dataset = WaymoDataset(
             mode="train",
             cfg=cfg,
@@ -2301,6 +2302,31 @@ def get_clean_train_dataset_single_batch(cfg, for_tracking=False, need_flow=True
     elif cfg.data.source == "kitti":
         if cfg.data.train_on_box_source == "mined":
             train_dataset = KittiRawDataset(
+                mode="train",
+                cfg=cfg,
+                use_geom_augmentation=False,
+                use_skip_frames="never",
+                pure_inference_mode=False,
+                training_target="object",  # trigger slim flow loading
+                for_tracking=for_tracking,
+                shuffle=False,
+                need_flow=need_flow,
+            )
+        elif cfg.data.train_on_box_source == "gt":
+            train_dataset = KittiObjectDataset(
+                mode="train",
+                cfg=cfg,
+                use_geom_augmentation=False,
+                use_skip_frames="never",
+                pure_inference_mode=True,
+                shuffle=False,
+            )
+        else:
+            raise NotImplementedError(cfg.data.train_on_box_source)
+        
+    elif cfg.data.source == "tartu":
+        if cfg.data.train_on_box_source == "mined":
+            train_dataset = TartuRawDataset(
                 mode="train",
                 cfg=cfg,
                 use_geom_augmentation=False,
