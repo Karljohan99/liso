@@ -756,9 +756,7 @@ class LidarDataset(torch.utils.data.Dataset):
                 and self.cfg.data.flow_source != "gt"
                 and self.mode == "train"
             ):
-                self.add_bev_flow(
-                    sample_content, self.cfg.data.flow_source, src_key, target_key
-                )
+                self.add_bev_flow(sample_content, self.cfg.data.flow_source, src_key, target_key)
             pcl_homog = homogenize_pcl(sample_content[f"pcl_{src_key}"]["pcl"][:, :3])
             if (
                 f"odom_{target_key}_{src_key}" in sample_content["gt"]
@@ -927,36 +925,27 @@ class LidarDataset(torch.utils.data.Dataset):
             )
         return ignore_region_is_true_mask
 
-    def move_keys_to_subdict(
-        self,
-        sample_content: Dict[str, np.ndarray],
-        move_these_keys=(
-            "objects",
-            "odom",
-            "flow",
-            "semantics",
-            "is_ground",
-            "track_ids_mask",
-        ),
-        subdict_target_key="gt",
-        drop_substr_from_moved_keys="",
-    ):
+    def move_keys_to_subdict(self, sample_content: Dict[str, np.ndarray],
+                            move_these_keys=("objects", "odom", "flow", "semantics", "is_ground", "track_ids_mask"),
+                            subdict_target_key="gt", drop_substr_from_moved_keys=""):
+        
         restructured_smaple_content = {}
-
         restructured_smaple_content[subdict_target_key] = {}
+
         for k in sample_content:
             move_key = False
+
             for move_key_to_gt in move_these_keys:
                 if move_key_to_gt in k:
                     move_key = True
                     break
+
             if move_key:
-                restructured_smaple_content[subdict_target_key][
-                    k.replace(drop_substr_from_moved_keys, "")
-                ] = sample_content[k]
+                restructured_smaple_content[subdict_target_key][k.replace(drop_substr_from_moved_keys, "")] = sample_content[k]
 
             else:
                 restructured_smaple_content[k] = sample_content[k]
+                
         return restructured_smaple_content
 
     def voxelize_sample(self, pcl_np):
@@ -1181,10 +1170,9 @@ class LidarDataset(torch.utils.data.Dataset):
             f"track_ids_mask_{src_key}",
         )
 
-    def add_bev_flow(
-        self, sample_content, point_flow_src_key, time_src_key, time_target_key
-    ):
+    def add_bev_flow(self, sample_content, point_flow_src_key, time_src_key, time_target_key):
         flow_key = f"flow_{time_src_key}_{time_target_key}"
+        print("SAMPLE_CONTENT", sample_content)
         if flow_key in sample_content[point_flow_src_key]:
             flow = sample_content[point_flow_src_key][flow_key]
             flow_gt_bev = scatter_mean_nd_numpy(
@@ -1192,9 +1180,7 @@ class LidarDataset(torch.utils.data.Dataset):
                 shape=tuple(self.img_grid_size_np) + (3,),
                 updates=flow,
             )
-            sample_content[point_flow_src_key][
-                f"flow_bev_{time_src_key}_{time_target_key}"
-            ] = flow_gt_bev.astype(np.float32)
+            sample_content[point_flow_src_key][f"flow_bev_{time_src_key}_{time_target_key}"] = flow_gt_bev.astype(np.float32)
 
     def add_bev_ground_height_occupancy_maps(self, sample_content, src_key):
         occupancy_map_f32 = np.zeros(self.img_grid_size_np)
