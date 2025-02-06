@@ -131,9 +131,11 @@ def main():
         assert resume_from_step > 0, resume_from_step
     else:
         assert resume_from_step == 0, "this will break all mining triggering logic!"
+
     for global_step in range(resume_from_step, cfg.optimization.num_training_steps + 1):
         trigger_reset_network_optimizer_scheduler_after_val = False
         number_of_current_round = global_step // cfg.optimization.rounds.steps_per_round
+
         if (cfg.optimization.rounds.active
             and number_of_current_round
             % cfg.optimization.rounds.drop_net_weights_every_nth_round
@@ -147,6 +149,7 @@ def main():
         if (cfg.data.train_on_box_source == "mined" and (cfg.data.augmentation.boxes.active and global_step == cfg.data.augmentation.boxes.start_augm_at_step)
             or (cfg.optimization.rounds.active and (global_step % cfg.optimization.rounds.steps_per_round == 0))
             or (cfg.loss.supervised.supervised_on_clusters.active and global_step == resume_from_step)):
+            
             print(f"Step: {global_step} - Deleting datasets to save RAM before starting tracking!")
 
             del train_loader
@@ -271,6 +274,7 @@ def main():
                 min_num_points_in_box=20,
                 max_size_of_db_mb=max_size_of_sv_db_mb,
             )
+
             visualize_augm_boxes_with_points_inside_them(
                 path_to_augm_box_db=path_to_box_augm_db,
                 num_boxes_to_visualize=200,
@@ -278,6 +282,7 @@ def main():
                 global_step=global_step,
                 writer_prefix="augm_boxes_from_gt",
             )
+
             train_loader, _, _, val_on_train_loader = get_datasets(
                 cfg,
                 fast_test,
@@ -303,10 +308,7 @@ def main():
             print("=" * 20)
         end_dataloading_time = time.perf_counter()
 
-        if (
-            cfg.loss.supervised.supervised_on_clusters.active
-            or cfg.data.augmentation.boxes.active
-        ):
+        if cfg.loss.supervised.supervised_on_clusters.active or cfg.data.augmentation.boxes.active:
             need_augm_sample_data = True
             need_sample_data_t0 = False
         else:
@@ -317,12 +319,7 @@ def main():
         if trigger_img_logging:
             need_sample_data_t0 = True
 
-        (
-            sample_data_t0,
-            _,
-            augm_sample_data_t0,
-            _,
-        ) = recursive_device_mover(
+        sample_data_t0, _, augm_sample_data_t0, _ = recursive_device_mover(
             full_train_data,
             need_sample_data_t0=need_sample_data_t0,
             need_sample_data_t1=False,
@@ -334,23 +331,19 @@ def main():
             train_data_source = get_train_data_source(cfg, sample_data_t0, augm_sample_data_t0)
 
             forward_start_time = time.perf_counter()
-            (pointrcnn_losses_dict) = box_predictor(
-                None,
-                get_network_input_pcls(
-                    cfg, train_data_source, time_key="ta", to_device=cuda0
-                ),
-                gt_boxes=train_data_source[cfg.data.train_on_box_source]["boxes"],
-                centermaps_gt=None,
-            )
+            (pointrcnn_losses_dict) = box_predictor(None,
+                                                    get_network_input_pcls(cfg, train_data_source, time_key="ta", to_device=cuda0),
+                                                    gt_boxes=train_data_source[cfg.data.train_on_box_source]["boxes"],
+                                                    centermaps_gt=None)
+            
+            print("BOX PRED 1:", pointrcnn_losses_dict)
+            
             forward_end_time = time.perf_counter()
             backward_start_time = time.perf_counter()
+
             for loss_name, loss_val in pointrcnn_losses_dict.items():
                 loss = loss + loss_val
-                fwd_writer.add_scalar(
-                    loss_name,
-                    loss_val,
-                    global_step=global_step,
-                )
+                fwd_writer.add_scalar(loss_name, loss_val, global_step=global_step)
 
         elif (
             cfg.loss.supervised.centermaps.active
@@ -358,39 +351,21 @@ def main():
             or cfg.optimization.rounds.active
             or cfg.loss.supervised.supervised_on_clusters.active
         ):
-            assert (
-                not cfg.network.name == "point_rcnn"
-            ), "does loss computation on its own"
-            assert cfg.network.name in (
-                "transfusion",
-                "centerpoint",
-            ), cfg.network.name
-            assert (
-                cfg.loss.supervised.centermaps.active
-                or cfg.loss.supervised.supervised_on_clusters.active
-                or cfg.loss.pointrcnn_loss.active
-            )
+            assert not cfg.network.name == "point_rcnn", "does loss computation on its own"
+            assert cfg.network.name in ("transfusion", "centerpoint"), cfg.network.name
+            assert cfg.loss.supervised.centermaps.active or cfg.loss.supervised.supervised_on_clusters.active or cfg.loss.pointrcnn_loss.active
 
-            train_data_source = get_train_data_source(
-                cfg, sample_data_t0, augm_sample_data_t0
-            )
+            train_data_source = get_train_data_source(cfg, sample_data_t0, augm_sample_data_t0)
 
             augm_loss_tag = f"{cfg.data.train_on_box_source}_augm_boxes"
 
             forward_start_time = time.perf_counter()
-            (
-                pred_boxes_on_augm_t0,
-                pred_boxes_maps_on_augm_t0,
-                raw_activated_box_attrs_on_augm_t0,
-                aux_net_outputs_on_augm_t0,
-            ) = box_predictor(
-                None,
-                get_network_input_pcls(
-                    cfg, train_data_source, time_key="ta", to_device=cuda0
-                ),
-                None,
-                centermaps_gt=None,
-            )
+            (pred_boxes_on_augm_t0, pred_boxes_maps_on_augm_t0, raw_activated_box_attrs_on_augm_t0, 
+             aux_net_outputs_on_augm_t0) = box_predictor(None, get_network_input_pcls(cfg, train_data_source, time_key="ta", to_device=cuda0), 
+                                                         None, centermaps_gt=None,)
+            
+            print("BOX PRED 2:", pred_boxes_on_augm_t0)
+            
             forward_end_time = time.perf_counter()
             backward_start_time = time.perf_counter()
 
@@ -513,20 +488,14 @@ def main():
                 raise NotImplementedError()
 
             sv_augm_loss = 0.0
+
             for loss_name, loss_val in centermap_losses.items():
                 sv_augm_loss = sv_augm_loss + cm_loss_weight * loss_val
-                fwd_writer.add_scalar(
-                    f"loss/{augm_loss_tag}/{loss_name}",
-                    cm_loss_weight * loss_val,
-                    global_step=global_step,
-                )
+                fwd_writer.add_scalar(f"loss/{augm_loss_tag}/{loss_name}", cm_loss_weight * loss_val, global_step=global_step)
+
             regul_loss_dict = {}
-            apply_rotation_regularization_loss(
-                cfg,
-                raw_activated_box_attrs_on_augm_t0,
-                pred_boxes_on_augm_t0,
-                regul_loss_dict,
-            )
+            apply_rotation_regularization_loss(cfg, raw_activated_box_attrs_on_augm_t0, pred_boxes_on_augm_t0, regul_loss_dict)
+
             for loss_name, loss_val in regul_loss_dict.items():
                 sv_augm_loss = sv_augm_loss + loss_val
                 fwd_writer.add_scalar(
@@ -541,6 +510,7 @@ def main():
                 sv_augm_loss,
                 global_step=global_step,
             )
+
         loss.backward()
 
         optimizer.step()
@@ -552,6 +522,7 @@ def main():
             "bwd_time": backward_end_time - backward_start_time,
             "dataloading_time": end_dataloading_time - start_dataloading_time,
         }
+
         for time_desc, actual_time in timings.items():
             fwd_writer.add_scalar(
                 f"timing/{time_desc}_s",
@@ -560,17 +531,12 @@ def main():
             )
         if fast_test:
             print(timings)
+
         fwd_writer.add_scalar("loss/total", loss, global_step=global_step)
-        fwd_writer.add_scalar(
-            "lr",
-            lr_scheduler.get_last_lr()[0],
-            global_step=global_step,
-        )
+        fwd_writer.add_scalar("lr", lr_scheduler.get_last_lr()[0], global_step=global_step)
 
         if global_step % cfg.checkpoint.save_model_every == 0:
-            save_experiment_state(
-                checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step
-            )
+            save_experiment_state(checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step)
 
         if (global_step > 0) and global_step % cfg.validation.val_every_n_steps == 0:
             if cfg.data.flow_source != "gt" and global_step == 0:
