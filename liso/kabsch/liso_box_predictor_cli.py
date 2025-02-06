@@ -1,12 +1,15 @@
 import gc
 import time
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 from tempfile import mkdtemp
+from sklearn.cluster import DBSCAN
 
 import matplotlib
 import torch
-from config_helper.config import get_config_hash
+from skimage.measure import regionprops
+#from config_helper.config import get_config_hash
 from liso.datasets.create_gt_augm_database import (
     build_augmentation_db_from_actual_groundtruth,
 )
@@ -42,6 +45,9 @@ from liso.utils.config_helper_helper import load_handle_args_cfg_logdir, pretty_
 from liso.visu.visualize_box_augmentation_database import (
     visualize_augm_boxes_with_points_inside_them,
 )
+from liso.kabsch.shape_utils import Shape
+from liso.utils.bev_utils import get_bev_setup_params
+from liso.utils.bev_flow_utils import get_bev_dynamic_flow_map_from_pcl_flow_and_odom
 from torch.utils.tensorboard.writer import SummaryWriter
 
 matplotlib.use("agg")
@@ -132,8 +138,95 @@ def main():
     else:
         assert resume_from_step == 0, "this will break all mining triggering logic!"
 
+    sample_data_ta = next(train_iterator)
 
-    print(next(train_iterator))
+    pcl = sample_data_ta["pcl_ta"]["pcl"]
+    pcl_full_w_ground_for_box_fitting = sample_data_ta["pcl_full_w_ground_ta"]
+    pillar_coors = sample_data_ta["pcl_ta"]["pillar_coors"]
+    point_flow = sample_data_ta[cfg.data.flow_source]["flow_ta_tb"]
+    odom_ta_tb = sample_data_ta[cfg.data.odom_source]["odom_ta_tb"]
+    pcl_is_valid = sample_data_ta["pcl_ta"]["pcl_is_valid"]
+
+    bev_range_m_np, img_grid_size_np, bev_pixel_per_meter_res_np, pcl_bev_center_coords_homog_np, torch_params = get_bev_setup_params(cfg)
+
+    min_residual_flow_thresh_mps = 1.0
+    grid_pts_3d = pcl_bev_center_coords_homog_np[..., 0:2]
+    pillar_bev_coors = np.stack(
+            np.meshgrid(np.arange(grid_pts_3d.shape[0]), np.arange(grid_pts_3d.shape[1]), indexing="ij"),
+            axis=-1,
+        )
+
+    nonrigid_bev_flow_threshold = (sample_data_ta["src_trgt_time_delta_s"] * min_residual_flow_thresh_mps)
+    is_batched=True
+
+    if is_batched:
+        pcl_is_valid = sample_data_ta["pcl_ta"]["pcl_is_valid"]
+    else:
+        pcl_is_valid = torch.ones_like(pcl[:, 0], dtype=bool)[None, ...]
+        pcl = pcl[None]
+        pcl_full_w_ground_for_box_fitting = pcl_full_w_ground_for_box_fitting[None]
+        pillar_coors = pillar_coors[None]
+        point_flow = point_flow[None]
+        odom_ta_tb = odom_ta_tb[None]
+        nonrigid_bev_flow_threshold = nonrigid_bev_flow_threshold[None]
+
+    (bev_dynamicness, bev_nonrigid_flow) = get_bev_dynamic_flow_map_from_pcl_flow_and_odom(
+    pcl_is_valid=pcl_is_valid,
+    pcl=pcl,
+    pillar_coors=pillar_coors,
+    point_flow=point_flow,
+    odom_ta_tb=odom_ta_tb,
+    target_shape=(64, 64),
+    return_nonrigid_bev_flow=True,
+    )
+
+    bev_dynamicness_u8_cpu_npy = ((bev_dynamicness * 255.0).to(torch.uint8).cpu()).numpy()
+    valid_mask_cpu_npy = ((torch.squeeze(bev_dynamicness, dim=-1) > nonrigid_bev_flow_threshold[..., None, None]).cpu()).numpy()
+
+    assert len(valid_mask_cpu_npy.shape) == 3, valid_mask_cpu_npy.shape
+    # num_clusters = 20
+
+    slic_img_segments = []
+    batched_pred_boxes = []
+
+
+    # flow_rgb = (pytorch_create_flow_image(bev_nonrigid_flow[..., :2].permute(0, 3, 1, 2)).permute(0, 2, 3, 1).cpu().numpy() * 255).astype(np.uint8)
+    # Image.fromarray(flow_rgb[batch_idx]).save("debug_imgs/nonrigid_flow.png")
+    box_target_device = pcl.device
+    for batch_idx, valid_mask in enumerate(valid_mask_cpu_npy):
+        if np.count_nonzero(valid_mask) > 1:
+            flow_similarity_importance = 2.0  # problem: dynamic flow is not smooth, should be Kabsched!
+            
+            dynamic_coors = grid_pts_3d[valid_mask]
+            dynamic_flow = flow_similarity_importance * bev_nonrigid_flow[batch_idx].detach().cpu().numpy()[valid_mask]
+            
+            cluster_coords = np.concatenate([dynamic_coors, dynamic_flow], axis=-1)
+            db = DBSCAN(eps=1.0, min_samples=5, metric="euclidean", algorithm="auto", n_jobs=1).fit(cluster_coords)
+
+            labels = db.labels_
+            labels = np.where(labels >= 0, labels + 1, 0)
+            bev_labels = np.zeros_like(valid_mask, dtype=labels.dtype)
+            pillar_coors = pillar_bev_coors[valid_mask]
+            bev_labels[pillar_coors[..., 0], pillar_coors[..., 1]] = labels
+            slic_img_segments.append(bev_labels)
+
+            clustered_regions = regionprops(bev_labels)
+            box_center_pix = np.clip(np.array([el.centroid for el in clustered_regions]).astype(np.int), a_min=0, a_max=min(grid_pts_3d.shape[:-1]) - 1)
+
+            rot = torch.from_numpy(np.array([el.orientation for el in clustered_regions])[..., None])
+            box_len = np.array([el.axis_major_length for el in clustered_regions])[..., None]
+            box_width = np.array([el.axis_minor_length for el in clustered_regions])[..., None]
+            box_dims = (torch.from_numpy(np.concatenate([box_len, box_width], axis=-1)) * 1.0 / bev_pixel_per_meter_res_np)
+
+            if box_center_pix.size > 0:
+                box_center_m = torch.from_numpy(grid_pts_3d[box_center_pix[..., 0], box_center_pix[..., 1]])
+            else:
+                box_center_m = torch.zeros_like(box_dims)
+
+            probs = torch.ones_like(rot)
+            pred_boxes = Shape(pos=box_center_m, dims=box_dims, rot=rot,probs=probs,).to(box_target_device)
+
+            print(pred_boxes)
 
     """
     for global_step in range(resume_from_step, cfg.optimization.num_training_steps + 1):
