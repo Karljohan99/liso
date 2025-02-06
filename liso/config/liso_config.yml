@@ -115,7 +115,7 @@ default:
           local: "/mnt/Bolt/liso/tartu_mined_dbs"
         slim_flow:
           slim_bev_120m:
-            local: "/mnt/Bolt/liso/slim_infere_logs/927ab/20250206_092559/preds"
+            local: "/mnt/Bolt/liso/slim_infere_logs/c52d4/20250206_154708/preds"
     source: "toy"
     flow_source: "gt"
     odom_source: "gt"

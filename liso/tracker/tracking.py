@@ -669,9 +669,6 @@ def track_boxes_on_data_sequence(
             for time_idx, data_el in enumerate(tqdm(subset_loader, disable=False, desc="Subset loader")):
                 sample_data_t0, _, _, meta = data_el
                 sample_ids = meta["sample_id"]
-
-                print(sample_ids)
-                print(sample_data_t0["slim_bev_120m"])
                 
                 assert len(sample_ids) == 1, "batch size 1 required"
                 assert sample_ids[0] == seq[time_idx].sample_name, (sample_ids[0], seq[time_idx].sample_name)
