@@ -142,7 +142,7 @@ def main():
     c = 0
     while sample_data_ta is None:
         if c % 100 == 0:
-            print("Searching " + "."*(c%1000) // 100, end='\r')
+            print("Searching " + "."*((c%1000) // 100), end='\r')
         sample_data_ta = next(train_iterator, None)[0]
 
     pcl = sample_data_ta["pcl_ta"]["pcl"]
