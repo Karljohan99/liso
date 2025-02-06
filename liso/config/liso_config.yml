@@ -108,7 +108,7 @@ default:
           slim_bev_120m:
             local: "/mnt/Bolt/liso/kitti_slim_infere_logs/6fb88/20250124_093726/preds"
       tartu:
-        local: "/mnt/Bolt/liso/tartu_dataset/tartu_filtered"
+        local: "/mnt/Bolt/liso/tartu_dataset/tartu_tiny"
         pure_dataset_root:
           local: "/mnt/ml2024"
         box_dbs:
