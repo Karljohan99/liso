@@ -141,8 +141,9 @@ def main():
     sample_data_ta = None
     c = 0
     while sample_data_ta is None:
-        if c % 100 == 0:
-            print(f"Searching ({c})"+ "."*((c%1000) // 100), end='\r')
+        print(c)
+        #if c % 100 == 0:
+        #    print(f"Searching ({c})"+ "."*((c%1000) // 100), end='\r')
         sample_data_ta = next(train_iterator, None)[0]
 
         if cfg.data.flow_source not in sample_data_ta:
