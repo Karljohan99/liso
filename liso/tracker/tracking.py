@@ -210,7 +210,7 @@ def main():
         global_step=global_step,
         writer_prefix="tracked_boxes_augm_db",
     )
-    if not isinstance(dataset, KittiRawDataset):
+    if not isinstance(dataset, (KittiRawDataset, TartuRawDataset)):
         # we don't have boxes or flow in the kitti raw to evaluate against
         prefetch_args = {}
         eval_mined_boxes_loader = torch.utils.data.DataLoader(
@@ -322,7 +322,7 @@ def get_sequence_id(cfg, meta_data):
     sample_ids = meta_data["sample_id"]
     if cfg.data.source in ("nuscenes", "waymo"):
         return [sid.split("_")[0] for sid in sample_ids]
-    elif cfg.data.source == "kitti":
+    elif cfg.data.source == "kitti" or cfg.data.source == "tartu":
         return sample_ids
     elif cfg.data.source == "av2":
         return [sid.split("/")[2] for sid in sample_ids]
@@ -527,7 +527,7 @@ def track_boxes_on_data_sequence(
         if verbose:
             log_freq = 1
         else:
-            log_freq = {"waymo": 10, "kitti": 10, "nuscenes": 20, "av2": 20}[
+            log_freq = {"waymo": 10, "kitti": 10, "tartu": 10, "nuscenes": 20, "av2": 20}[
                 cfg.data.source
             ]
     if writer is not None:
