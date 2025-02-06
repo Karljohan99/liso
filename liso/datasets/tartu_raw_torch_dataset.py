@@ -155,8 +155,6 @@ class TartuRawDataset(LidarDataset):
             timestamp=0,
             full_path=str(self.per_seq_sample_paths[sequence_idx][start_idx_in_sequence + idx]))
             for idx in range(sequence_length)]
-        
-        print("CHOSESN SAMPLES", chosen_samples)
 
         return chosen_samples
 
