@@ -581,58 +581,32 @@ class LidarDataset(torch.utils.data.Dataset):
             extra_boxes = Shape.createEmpty()
         sample_content["mined"] = {"objects_t0": extra_boxes}
 
-    def load_add_flow_to_sample_content(
-        self,
-        fname,
-        sample_content,
-        src_key,
-        target_key,
-        use_path_stem_only=True,
-        specific_pred_flow_path: Path = None,
-    ):
+    def load_add_flow_to_sample_content(self, fname, sample_content, src_key, target_key, use_path_stem_only=True, specific_pred_flow_path: Path = None):
+        # Get lidar flow data
         if specific_pred_flow_path is None:
             if use_path_stem_only:
-                specific_pred_flow_path = self.pred_flow_path.joinpath(
-                    Path(fname).stem + ".npz"
-                )
+                specific_pred_flow_path = self.pred_flow_path.joinpath(Path(fname).stem + ".npz")
             else:
-                specific_pred_flow_path = self.pred_flow_path.joinpath(
-                    Path(fname).with_suffix(".npz")
-                )
+                specific_pred_flow_path = self.pred_flow_path.joinpath(Path(fname).with_suffix(".npz"))
 
         if not specific_pred_flow_path.exists():
-            print(
-                f"Warning - file {specific_pred_flow_path} for flow source {self.cfg.data.flow_source} was not found!"
-            )
+            print(f"Warning - file {specific_pred_flow_path} for flow source {self.cfg.data.flow_source} was not found!")
             return
-        pred_content = self.loader_saver_helper.load_sample(
-            specific_pred_flow_path, np.load, allow_pickle=True
-        )
-        flow_source_grid_range_m_np = np.append(
-            pred_content["bev_range_m"], np.array(1000.0)
-        )
+        
+        pred_content = self.loader_saver_helper.load_sample(specific_pred_flow_path, np.load, allow_pickle=True)
+        flow_source_grid_range_m_np = np.append(pred_content["bev_range_m"], np.array(1000.0))
+        
         if self.use_geom_augmentation and self.cfg.data.augmentation.active:
-            max_allowed_radius = 0.5 * np.linalg.norm(
-                0.5 * flow_source_grid_range_m_np[:2]
-            )
+            max_allowed_radius = 0.5 * np.linalg.norm(0.5 * flow_source_grid_range_m_np[:2])
         else:
             max_allowed_radius = np.min(0.5 * flow_source_grid_range_m_np[:2])
-        assert (
-            0.5 * np.max(self.bev_range_m_np) <= max_allowed_radius
-        ), "cannot gather flow predictions outside of bev range - load predictiosn with larger bev or reduce cfg.data.bev_range_m"
+        assert (0.5 * np.max(self.bev_range_m_np) <= max_allowed_radius), "cannot gather flow predictions outside of bev range - load predictiosn with larger bev or reduce cfg.data.bev_range_m"
 
         grid_size = np.append(pred_content["bev_raw_flow_t0_t1"].shape[:2], np.array(1))
 
         sample_content[self.cfg.data.flow_source] = {}
-        for source_time_key, target_time_key in (
-            (src_key, target_key),
-            (target_key, src_key),
-        ):
-            voxel_coors, in_range = voxelize_pcl(
-                sample_content[f"pcl_{source_time_key}"],
-                flow_source_grid_range_m_np,
-                grid_size,
-            )
+        for source_time_key, target_time_key in ((src_key, target_key), (target_key, src_key)):
+            voxel_coors, in_range = voxelize_pcl(sample_content[f"pcl_{source_time_key}"], flow_source_grid_range_m_np, grid_size)
             pillar_coors = voxel_coors[:, :2]
             flow2d = np.nan * np.ones(pillar_coors.shape, dtype=np.float32)
             bev_flow = pred_content[f"bev_raw_flow_{source_time_key}_{target_time_key}"]
@@ -642,14 +616,10 @@ class LidarDataset(torch.utils.data.Dataset):
             #     bev_flow
             # )
 
-            bev_flow = self.expand_valid_bev_flow_to_zero_flow_neighbor_pillars(
-                bev_flow
-            )
+            bev_flow = self.expand_valid_bev_flow_to_zero_flow_neighbor_pillars(bev_flow)
 
             in_range_pillar_coors = pillar_coors[in_range]
-            flow2d[in_range] = bev_flow[
-                in_range_pillar_coors[..., 0], in_range_pillar_coors[..., 1]
-            ]
+            flow2d[in_range] = bev_flow[in_range_pillar_coors[..., 0], in_range_pillar_coors[..., 1]]
             flow2d[~in_range] = np.mean(flow2d[in_range], axis=0)
             # some NANs seem to have slipped through
             # probably we are using another voxelize method somewhere else
@@ -664,9 +634,7 @@ class LidarDataset(torch.utils.data.Dataset):
             #     flow2d = np.where(np.isfinite(flow2d), flow2d, 0.0)
 
             flow3d = np.concatenate([flow2d, np.zeros_like(flow2d[:, :1])], axis=-1)
-            sample_content[self.cfg.data.flow_source][
-                f"flow_{source_time_key}_{target_time_key}"
-            ] = flow3d
+            sample_content[self.cfg.data.flow_source][f"flow_{source_time_key}_{target_time_key}"] = flow3d
 
     def expand_valid_bev_flow_to_zero_flow_neighbor_pillars(self, bev_flow: np.ndarray):
         # this should fix any small numerical imprecisions during pillarization

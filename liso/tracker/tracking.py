@@ -592,7 +592,7 @@ def track_boxes_on_data_sequence(
     time_between_frames_s = [0.1, 0.5][isinstance(dataset, NuscenesDataset)]
     cuda0 = torch.device("cuda:0")
 
-    with tqdm(total=max_tqdm_count, disable=False) as pbar:
+    with tqdm(total=max_tqdm_count, disable=False, desc="Track boxes on data sequence") as pbar:
         while num_successfull_tracks < min_num_boxes and time.time() < timeout_at:
             raw_boxes_db = {}
             visu_boxes_db = {}
@@ -674,41 +674,34 @@ def track_boxes_on_data_sequence(
                 gt_tracker = NotATracker()
             else:
                 raise NotImplementedError(tracker_model_name)
+            
             point_clouds_sensor_cosy = []
             point_cloud_row_idxs = []
             sample_ids_in_seq = []
             odoms_t0_t1 = []
-            for time_idx, data_el in enumerate(tqdm(subset_loader, disable=False)):
+            
+            for time_idx, data_el in enumerate(tqdm(subset_loader, disable=False, desc="Subset loader")):
                 sample_data_t0, _, _, meta = data_el
                 sample_ids = meta["sample_id"]
+                
                 assert len(sample_ids) == 1, "batch size 1 required"
-                assert sample_ids[0] == seq[time_idx].sample_name, (
-                    sample_ids[0],
-                    seq[time_idx].sample_name,
-                )
+                assert sample_ids[0] == seq[time_idx].sample_name, (sample_ids[0], seq[time_idx].sample_name)
+                
                 sample_id = sample_ids[0]
                 sample_ids_in_seq.append(sample_id)
-                network_input_pcls_ta = get_network_input_pcls(
-                    cfg,
-                    sample_data_t0,
-                    time_key="ta",
-                    to_device=cuda0,
-                )
+                network_input_pcls_ta = get_network_input_pcls(cfg, sample_data_t0, time_key="ta", to_device=cuda0)
 
                 pcl_no_ground = sample_data_t0["pcl_ta"]["pcl"][0].to(cuda0)
+                
                 if isinstance(box_predictor, (FlowClusterDetector,)):
-                    pred_boxes = box_predictor(
-                        sample_data_t0,
-                        writer=writer,
-                        writer_prefix=writer_prefix,
-                        global_step=global_step + num_successfull_tracks,
-                    )
+                    pred_boxes = box_predictor(sample_data_t0, writer=writer, writer_prefix=writer_prefix, global_step=global_step + num_successfull_tracks)
                     pred_boxes = pred_boxes.to(cuda0)
                 else:
                     if cfg.network.name == "echo_gt":
                         gt_echo_boxes = sample_data_t0["gt"]["boxes"].to(cuda0)
                     else:
                         gt_echo_boxes = None
+                    
                     pred_boxes, _, _, _ = box_predictor(
                         img_t0=None,
                         pcls_t0=network_input_pcls_ta,
@@ -717,15 +710,11 @@ def track_boxes_on_data_sequence(
                         train=False,
                     )
                     del gt_echo_boxes
+                    
                     if (
                         cfg.box_prediction.activations.probs == "none"
-                        and not isinstance(
-                            box_predictor,
-                            (FlowClusterDetector,),
-                        )
-                        and not (
-                            isinstance(box_predictor, BoxLearner)
-                            and isinstance(
+                        and not isinstance(box_predictor, (FlowClusterDetector,))
+                        and not (isinstance(box_predictor, BoxLearner) and isinstance(
                                 box_predictor.model,
                                 (PointPillarsWrapper, PointRCNNWrapper),
                             )
@@ -744,16 +733,13 @@ def track_boxes_on_data_sequence(
 
                 assert len(pred_boxes.shape) == 1, "batching not supported"
 
-                if (
-                    pred_boxes.shape[0] > 0
-                    and tracking_cfg.drop_boxes_on_bev_boundaries
-                ):
+                if pred_boxes.shape[0] > 0 and tracking_cfg.drop_boxes_on_bev_boundaries:
+
                     is_box_fully_visible_in_bev = is_boxes_clearly_in_bev_range(
                         pred_boxes,
-                        bev_range_m=torch.tensor(
-                            cfg.data.bev_range_m, device=pred_boxes.pos.device
-                        ),
+                        bev_range_m=torch.tensor(cfg.data.bev_range_m, device=pred_boxes.pos.device),
                     )
+                    
                     pred_boxes.valid = is_box_fully_visible_in_bev
                     if verbose:
                         print(
