@@ -131,6 +131,11 @@ def main():
         assert resume_from_step > 0, resume_from_step
     else:
         assert resume_from_step == 0, "this will break all mining triggering logic!"
+
+
+    print(next(train_loader))
+
+    """
     for global_step in range(resume_from_step, cfg.optimization.num_training_steps + 1):
         trigger_reset_network_optimizer_scheduler_after_val = False
         number_of_current_round = global_step // cfg.optimization.rounds.steps_per_round
@@ -650,7 +655,7 @@ def main():
         _ = save_experiment_state(
             checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step
         )
-
+"""
 
 def save_experiment_state(
     checkpoint_dir: Path, box_predictor, optimizer, lr_scheduler, global_step: int
