@@ -133,7 +133,7 @@ def main():
         assert resume_from_step == 0, "this will break all mining triggering logic!"
 
 
-    print(next(train_loader))
+    print(next(train_iterator))
 
     """
     for global_step in range(resume_from_step, cfg.optimization.num_training_steps + 1):
