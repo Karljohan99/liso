@@ -138,7 +138,7 @@ def main():
     else:
         assert resume_from_step == 0, "this will break all mining triggering logic!"
 
-    sample_data_ta = next(train_iterator)
+    sample_data_ta = next(train_iterator)[0]
 
     pcl = sample_data_ta["pcl_ta"]["pcl"]
     pcl_full_w_ground_for_box_fitting = sample_data_ta["pcl_full_w_ground_ta"]
