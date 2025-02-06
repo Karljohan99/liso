@@ -145,6 +145,9 @@ def main():
             print("Searching " + "."*((c%1000) // 100), end='\r')
         sample_data_ta = next(train_iterator, None)[0]
 
+        if cfg.data.flow_source not in sample_data_ta:
+            sample_data_ta = None
+
     pcl = sample_data_ta["pcl_ta"]["pcl"]
     pcl_full_w_ground_for_box_fitting = sample_data_ta["pcl_full_w_ground_ta"]
     pillar_coors = sample_data_ta["pcl_ta"]["pillar_coors"]
