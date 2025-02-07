@@ -9,11 +9,12 @@ from sklearn.cluster import DBSCAN
 import matplotlib
 import torch
 from skimage.measure import regionprops
-#from config_helper.config import get_config_hash
+from config_helper.config import get_config_hash
 from liso.datasets.create_gt_augm_database import (
     build_augmentation_db_from_actual_groundtruth,
 )
 from liso.datasets.kitti_raw_torch_dataset import KittiRawDataset
+from liso.datasets.tartu_raw_torch_dataset import TartuRawDataset
 from liso.datasets.torch_dataset_commons import lidar_dataset_collate_fn, worker_init_fn
 from liso.eval.eval_ours import run_val
 from liso.kabsch.main_utils import (
@@ -137,6 +138,168 @@ def main():
         assert resume_from_step > 0, resume_from_step
     else:
         assert resume_from_step == 0, "this will break all mining triggering logic!"
+
+    for global_step in range(resume_from_step, cfg.optimization.num_training_steps + 1):
+        trigger_reset_network_optimizer_scheduler_after_val = False
+        number_of_current_round = global_step // cfg.optimization.rounds.steps_per_round
+
+        if (cfg.optimization.rounds.active
+            and number_of_current_round
+            % cfg.optimization.rounds.drop_net_weights_every_nth_round
+            == 0
+            and global_step > 0
+            and (global_step % cfg.optimization.rounds.steps_per_round == 0)
+            and cfg.data.train_on_box_source == "mined"):
+
+            trigger_reset_network_optimizer_scheduler_after_val = True
+
+        if (cfg.data.train_on_box_source == "mined" and (cfg.data.augmentation.boxes.active and global_step == cfg.data.augmentation.boxes.start_augm_at_step)
+            or (cfg.optimization.rounds.active and (global_step % cfg.optimization.rounds.steps_per_round == 0))
+            or (cfg.loss.supervised.supervised_on_clusters.active and global_step == resume_from_step)):
+            
+            print(f"Step: {global_step} - Deleting datasets to save RAM before starting tracking!")
+
+            del train_loader
+            del val_on_train_loader
+            gc.collect()
+
+            skip_db_generation = False
+            if global_step == resume_from_step:
+                clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(cfg)
+
+                if cfg.data.tracking_cfg.bootstrap_detector == "flow_cluster_detector":
+                    box_predictor_for_tracking = FlowClusterDetector(cfg)
+                else:
+                    raise NotImplementedError(cfg.data.tracking_cfg.bootstrap_detector)
+                
+                box_db_base_dir = get_box_dbs_path(cfg)
+                path_to_box_augm_db = box_db_base_dir / "boxes_db_global_step_0.npy"
+
+                assert cfg.optimization.rounds.raw_or_tracked in {"tracked", "raw"}, cfg.optimization.rounds.raw_or_tracked
+
+                path_to_mined_boxes_db = (box_db_base_dir / f"{cfg.optimization.rounds.raw_or_tracked}.npz")
+                tracking_args = {"export_raw_tracked_detections_to": box_db_base_dir}
+
+                if Path(path_to_box_augm_db).exists() and Path(path_to_mined_boxes_db).exists() and not cfg.data.force_redo_box_mining:
+                    skip_db_generation = True
+
+            else:
+                clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(cfg)
+                cfg_hash = get_config_hash(cfg)[:5]
+                datetime_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                box_db_base_dir = (get_box_dbs_path(cfg) / f"round_{number_of_current_round}_step_{global_step}_{cfg_hash}_{datetime_str}")
+                #fwd_writer.add_text("save_mined_box", box_db_base_dir.as_posix(), global_step)
+
+                box_predictor_for_tracking = box_predictor
+                tracking_args = {"export_raw_tracked_detections_to": box_db_base_dir}
+
+            if skip_db_generation:
+                print("Skipping DB generation!")
+            else:
+                if fast_test or args.profile:
+                    tracking_args["min_num_boxes"] = 2
+                    tracking_args["timeout_s"] = 60
+                    tracking_args["max_augm_db_size_mb"] = 1
+                else:
+                    tracking_args["max_augm_db_size_mb"] = cfg.data.tracking_cfg.setdefault("max_augm_db_size_mb", 250)
+
+                path_to_box_augm_db, paths_to_mined_boxes_dbs = track_boxes_on_data_sequence(
+                    cfg=cfg,
+                    dataset=clean_dataset_for_db_creation,
+                    box_predictor=box_predictor_for_tracking,
+                    writer=None,
+                    global_step=global_step,
+                    writer_prefix="tracking",
+                    tracking_cfg=cfg.data.tracking_cfg,
+                    **tracking_args,
+                )
+                path_to_mined_boxes_db = paths_to_mined_boxes_dbs[
+                    cfg.optimization.rounds.raw_or_tracked
+                ]
+
+            visualize_augm_boxes_with_points_inside_them(
+                path_to_augm_box_db=path_to_box_augm_db,
+                num_boxes_to_visualize=200,
+                writer=None,
+                global_step=global_step,
+                writer_prefix="augm_boxes_from_tracking",
+            )
+
+            # copy the box db to log dir
+            copy_box_db_to_dir(path_to_box_augm_db, log_dir=log_dir, global_step=global_step)
+            copy_box_db_to_dir(path_to_mined_boxes_db, log_dir=log_dir, global_step=global_step)
+
+            if not isinstance(clean_dataset_for_db_creation, (KittiRawDataset, TartuRawDataset)):
+                # we don't have boxes or flow in the kitti raw to evaluate against
+                eval_mined_boxes_loader = torch.utils.data.DataLoader(
+                    clean_dataset_for_db_creation,
+                    pin_memory=True,
+                    batch_size=1,
+                    num_workers=cfg.data.num_workers,
+                    collate_fn=lidar_dataset_collate_fn,
+                    shuffle=not fast_test,  # shuffle to get more diversity!!
+                    # but during fast test only 3 samples are in the box db! -> 0 predictions
+                    worker_init_fn=worker_init_fn,
+                )
+                run_val(
+                    cfg,
+                    eval_mined_boxes_loader,
+                    load_mined_boxes_db(path_to_mined_boxes_db),
+                    recursive_device_mover,
+                    "mined_boxes_val/",
+                    None,
+                    global_step,
+                    max_num_steps=cfg.validation.num_val_steps,
+                )
+
+            train_loader, _, _, val_on_train_loader = get_datasets(
+                cfg,
+                fast_test,
+                path_to_augmentation_db=path_to_box_augm_db,
+                path_to_mined_boxes_db=path_to_mined_boxes_db,
+                target="object",
+                shuffle_validation=True,
+                need_flow_during_training=False,
+            )
+
+            train_iterator = iter(train_loader)
+
+        elif (
+            global_step == resume_from_step  # first train iteration
+            and cfg.data.train_on_box_source == "gt"
+            and cfg.data.augmentation.boxes.active
+        ):
+            # we need to generate the box augmentation db from the groundtruth
+            target_dir_box_augm_db = mkdtemp()
+            path_to_box_augm_db = build_augmentation_db_from_actual_groundtruth(
+                cfg,
+                target_dir_box_augm_db,
+                save_every_n_samples=100,
+                min_num_points_in_box=20,
+                max_size_of_db_mb=max_size_of_sv_db_mb,
+            )
+
+            visualize_augm_boxes_with_points_inside_them(
+                path_to_augm_box_db=path_to_box_augm_db,
+                num_boxes_to_visualize=200,
+                writer=None,
+                global_step=global_step,
+                writer_prefix="augm_boxes_from_gt",
+            )
+
+            train_loader, _, _, val_on_train_loader = get_datasets(
+                cfg,
+                fast_test,
+                path_to_augmentation_db=path_to_box_augm_db,
+                path_to_mined_boxes_db=None,
+                target="object",
+                shuffle_validation=True,
+                need_flow_during_training=False,
+            )
+
+            train_iterator = iter(train_loader)
+
 
     sample_data_ta = None
     c = 0

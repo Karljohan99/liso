@@ -198,10 +198,8 @@ def main():
                     tracking_args["max_augm_db_size_mb"] = 1
                 else:
                     tracking_args["max_augm_db_size_mb"] = cfg.data.tracking_cfg.setdefault("max_augm_db_size_mb", 250)
-                (
-                    path_to_box_augm_db,
-                    paths_to_mined_boxes_dbs,
-                ) = track_boxes_on_data_sequence(
+
+                path_to_box_augm_db, paths_to_mined_boxes_dbs = track_boxes_on_data_sequence(
                     cfg=cfg,
                     dataset=clean_dataset_for_db_creation,
                     box_predictor=box_predictor_for_tracking,
@@ -227,7 +225,7 @@ def main():
             copy_box_db_to_dir(path_to_box_augm_db, log_dir=log_dir, global_step=global_step)
             copy_box_db_to_dir(path_to_mined_boxes_db, log_dir=log_dir, global_step=global_step)
 
-            if not isinstance(clean_dataset_for_db_creation, KittiRawDataset, TartuRawDataset):
+            if not isinstance(clean_dataset_for_db_creation, (KittiRawDataset, TartuRawDataset)):
                 # we don't have boxes or flow in the kitti raw to evaluate against
                 eval_mined_boxes_loader = torch.utils.data.DataLoader(
                     clean_dataset_for_db_creation,
