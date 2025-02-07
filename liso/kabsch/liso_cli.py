@@ -139,6 +139,7 @@ def main():
         trigger_reset_network_optimizer_scheduler_after_val = False
         number_of_current_round = global_step // cfg.optimization.rounds.steps_per_round
 
+        # Should network optimizer scheduler be reset after validation
         if (cfg.optimization.rounds.active
             and number_of_current_round
             % cfg.optimization.rounds.drop_net_weights_every_nth_round
@@ -234,7 +235,7 @@ def main():
                 writer_prefix="augm_boxes_from_tracking",
             )
 
-            # opy the box db to log dir
+            # Copy the box db to log dir
             copy_box_db_to_dir(path_to_box_augm_db, log_dir=log_dir, global_step=global_step)
             copy_box_db_to_dir(path_to_mined_boxes_db, log_dir=log_dir, global_step=global_step)
 
@@ -363,7 +364,7 @@ def main():
                 loss = loss + loss_val
                 fwd_writer.add_scalar(loss_name, loss_val, global_step=global_step)
 
-        # Optimization rounds or using supervised losses
+        # Optimization rounds or if using supervised losses
         elif (cfg.loss.supervised.centermaps.active or cfg.loss.supervised.hungarian.active or cfg.optimization.rounds.active or cfg.loss.supervised.supervised_on_clusters.active):
             assert not cfg.network.name == "point_rcnn", "does loss computation on its own"
             assert cfg.network.name in ("transfusion", "centerpoint"), cfg.network.name
@@ -387,56 +388,30 @@ def main():
                 cm_loss_weight = cfg.loss.supervised.supervised_on_clusters.weight
 
                 cp_augm_regression_maps = {
-                    attr_name: train_data_source[cfg.data.train_on_box_source][
-                        f"centermaps_{attr_name}"
-                    ]
+                    attr_name: train_data_source[cfg.data.train_on_box_source][f"centermaps_{attr_name}"]
                     for attr_name in cfg.loss.supervised.supervised_on_clusters.attrs
                 }
 
-                cp_augm_center_mask = train_data_source[cfg.data.train_on_box_source][
-                    "centermaps_center_bool_mask"
-                ]
+                cp_augm_center_mask = train_data_source[cfg.data.train_on_box_source]["centermaps_center_bool_mask"]
             else:
-                raise NotImplementedError(
-                    cfg.loss.supervised_centermaps.confidence_target
-                )
+                raise NotImplementedError(cfg.loss.supervised_centermaps.confidence_target)
+            
             if cfg.data.train_on_box_source == "gt" and cfg.data.source == "kitti":
-                cp_ignore_region_is_true_mask = train_data_source[
-                    cfg.data.train_on_box_source
-                ]["ignore_region_is_true_mask"]
+                cp_ignore_region_is_true_mask = train_data_source[cfg.data.train_on_box_source]["ignore_region_is_true_mask"]
             else:
                 cp_ignore_region_is_true_mask = torch.zeros_like(cp_augm_center_mask)
 
-            rotation_loss_weights_map = torch.ones_like(
-                cp_augm_regression_maps["probs"]
-            )
+            rotation_loss_weights_map = torch.ones_like(cp_augm_regression_maps["probs"])
 
+            # Logging
             if trigger_img_logging:
-                log_gt_bev_maps(
-                    fwd_writer,
-                    "AUGM",
-                    global_step,
-                    cp_augm_regression_maps,
-                    cp_augm_center_mask,
-                    cp_ignore_region_is_true_mask,
-                )
+                log_gt_bev_maps(fwd_writer, "AUGM", global_step, cp_augm_regression_maps, cp_augm_center_mask, cp_ignore_region_is_true_mask)
+
                 if cfg.network.name == "centerpoint" and (trigger_img_logging):
                     for map_name in raw_activated_box_attrs_on_augm_t0:
-                        visu_map = raw_activated_box_attrs_on_augm_t0[map_name].mean(
-                            keepdims=True, dim=-1
-                        )
-                        visu_map_normed = (
-                            visu_map - torch.amin(visu_map, dim=(1, 2), keepdim=True)
-                        ) / (
-                            torch.amax(visu_map, dim=(1, 2), keepdim=True)
-                            - torch.amin(visu_map, dim=(1, 2), keepdim=True)
-                        )
-                        fwd_writer.add_images(
-                            f"PRED/{map_name}",
-                            visu_map_normed,
-                            global_step=global_step,
-                            dataformats="NHWC",
-                        )
+                        visu_map = raw_activated_box_attrs_on_augm_t0[map_name].mean(keepdims=True, dim=-1)
+                        visu_map_normed = (visu_map - torch.amin(visu_map, dim=(1, 2), keepdim=True)) / (torch.amax(visu_map, dim=(1, 2), keepdim=True) - torch.amin(visu_map, dim=(1, 2), keepdim=True))
+                        fwd_writer.add_images(f"PRED/{map_name}", visu_map_normed, global_step=global_step, dataformats="NHWC")
 
                 bev_occup_mask = aux_net_outputs_on_augm_t0["bev_net_input_dbg"]
 
@@ -450,6 +425,8 @@ def main():
                     occupancy_f32=bev_occup_mask,
                     pred_boxes=train_data_source[cfg.data.train_on_box_source]["boxes"],
                 )
+
+            # Centerpoint loss
             if cfg.network.name == "centerpoint":
                 centermap_losses = centerpoint_loss(
                     loss_cfg=cfg.loss,
@@ -462,6 +439,8 @@ def main():
                     box_prediction_cfg=cfg.box_prediction,
                     ignore_region_is_true_mask=cp_ignore_region_is_true_mask,
                 )
+
+            # Transfusion heatmap loss
             elif cfg.network.name == "transfusion":
                 centermap_losses = compute_transfusion_heatmap_loss(
                     loss_cfg=cfg.loss,
@@ -470,12 +449,9 @@ def main():
                     gt_center_mask=cp_augm_center_mask,
                     ignore_region_is_true_mask=cp_ignore_region_is_true_mask,
                 )
-                assert (
-                    cfg.loss.supervised.centermaps.confidence_target == "gaussian"
-                ), cfg.loss.supervised.centermaps.confidence_target
-                cluster_boxes_a = train_data_source[cfg.data.train_on_box_source][
-                    "boxes"
-                ]
+
+                assert (cfg.loss.supervised.centermaps.confidence_target == "gaussian"), cfg.loss.supervised.centermaps.confidence_target
+                cluster_boxes_a = train_data_source[cfg.data.train_on_box_source]["boxes"]
 
                 sv_hungarian_losses_dict = sv_hungarian_loss(
                     cfg=cfg,
@@ -493,11 +469,7 @@ def main():
                 )
                 for loss_name, loss_val in sv_hungarian_losses_dict.items():
                     loss = loss + loss_val
-                    fwd_writer.add_scalar(
-                        loss_name,
-                        loss_val,
-                        global_step=global_step,
-                    )
+                    fwd_writer.add_scalar(loss_name, loss_val, global_step=global_step)
             else:
                 raise NotImplementedError()
 
@@ -512,18 +484,10 @@ def main():
 
             for loss_name, loss_val in regul_loss_dict.items():
                 sv_augm_loss = sv_augm_loss + loss_val
-                fwd_writer.add_scalar(
-                    f"loss/{augm_loss_tag}/{loss_name}",
-                    cm_loss_weight * loss_val,
-                    global_step=global_step,
-                )
+                fwd_writer.add_scalar(f"loss/{augm_loss_tag}/{loss_name}", cm_loss_weight * loss_val, global_step=global_step)
 
             loss = loss + sv_augm_loss
-            fwd_writer.add_scalar(
-                f"loss/{augm_loss_tag}/total_sv",
-                sv_augm_loss,
-                global_step=global_step,
-            )
+            fwd_writer.add_scalar(f"loss/{augm_loss_tag}/total_sv", sv_augm_loss, global_step=global_step)
 
         loss.backward()
 
@@ -538,20 +502,18 @@ def main():
         }
 
         for time_desc, actual_time in timings.items():
-            fwd_writer.add_scalar(
-                f"timing/{time_desc}_s",
-                actual_time,
-                global_step=global_step,
-            )
+            fwd_writer.add_scalar(f"timing/{time_desc}_s", actual_time, global_step=global_step)
         if fast_test:
             print(timings)
 
         fwd_writer.add_scalar("loss/total", loss, global_step=global_step)
         fwd_writer.add_scalar("lr", lr_scheduler.get_last_lr()[0], global_step=global_step)
 
+        # Save checkpoint
         if global_step % cfg.checkpoint.save_model_every == 0:
             save_experiment_state(checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step)
-
+        
+        # Validation
         if (global_step > 0) and global_step % cfg.validation.val_every_n_steps == 0:
             if cfg.data.flow_source != "gt" and global_step == 0:
                 sanity_check_flow(
@@ -593,14 +555,12 @@ def main():
             )
             torch.cuda.empty_cache()  # let's hope that fixes OOM?
             box_predictor.train()
+
+        # Reset network optimizer scheduler        
         if trigger_reset_network_optimizer_scheduler_after_val:
             assert cfg.data.train_on_box_source != "gt", cfg.data.train_on_box_source
             print(f"{global_step}: RESETTING NETWORK, OPTIMIZER, SCHEDULER")
-            box_predictor, optimizer, lr_scheduler, _ = get_network_optimizer_scheduler(
-                cfg,
-                path_to_checkpoint=None,
-                device=cuda0,
-            )
+            box_predictor, optimizer, lr_scheduler, _ = get_network_optimizer_scheduler(cfg, path_to_checkpoint=None, device=cuda0)
             box_predictor.train()
             trigger_reset_network_optimizer_scheduler_after_val = False
 
@@ -614,9 +574,7 @@ def main():
         _ = save_experiment_state(checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step)
 
 
-def save_experiment_state(
-    checkpoint_dir: Path, box_predictor, optimizer, lr_scheduler, global_step: int
-):
+def save_experiment_state(checkpoint_dir: Path, box_predictor, optimizer, lr_scheduler, global_step: int):
     save_to = checkpoint_dir.joinpath(f"{global_step}.pth")
     torch.save(
         {
