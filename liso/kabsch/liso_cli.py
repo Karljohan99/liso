@@ -172,12 +172,17 @@ def main():
                 else:
                     raise NotImplementedError(cfg.data.tracking_cfg.bootstrap_detector)
                 
-                # Set up paths for stroing mined boxes from flow
+                # Set up paths for storing mined boxes from flow
+
+                # .npy -> box augmentation database 
                 box_db_base_dir = get_box_dbs_path(cfg)
                 path_to_box_augm_db = box_db_base_dir / "boxes_db_global_step_0.npy"
 
+                print("Mined boxes database directory:", box_db_base_dir)
+
                 assert cfg.optimization.rounds.raw_or_tracked in {"tracked", "raw"}, cfg.optimization.rounds.raw_or_tracked
 
+                # tracked.npz or raw.npz -> mined boxes database
                 path_to_mined_boxes_db = (box_db_base_dir / f"{cfg.optimization.rounds.raw_or_tracked}.npz")
                 tracking_args = {"export_raw_tracked_detections_to": box_db_base_dir}
 
@@ -190,7 +195,7 @@ def main():
                 clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(cfg)
                 cfg_hash = get_config_hash(cfg)[:5]
                 datetime_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
+
                 box_db_base_dir = (get_box_dbs_path(cfg) / f"round_{number_of_current_round}_step_{global_step}_{cfg_hash}_{datetime_str}")
                 fwd_writer.add_text("save_mined_box", box_db_base_dir.as_posix(), global_step)
 
@@ -339,7 +344,7 @@ def main():
             need_augm_sample_data_t0=need_augm_sample_data,
         )
 
-
+        # If using pointrcnn or pointpillars loss
         if cfg.loss.pointrcnn_loss.active or cfg.loss.pointpillars_loss.active:
             assert cfg.network.name in ("pointrcnn", "pointpillars"), cfg.network.name
             train_data_source = get_train_data_source(cfg, sample_data_t0, augm_sample_data_t0)
@@ -351,8 +356,6 @@ def main():
                                                     gt_boxes=train_data_source[cfg.data.train_on_box_source]["boxes"],
                                                     centermaps_gt=None)
             
-            print("BOX PRED 1:", pointrcnn_losses_dict)
-            
             forward_end_time = time.perf_counter()
             backward_start_time = time.perf_counter()
 
@@ -360,12 +363,8 @@ def main():
                 loss = loss + loss_val
                 fwd_writer.add_scalar(loss_name, loss_val, global_step=global_step)
 
-        elif (
-            cfg.loss.supervised.centermaps.active
-            or cfg.loss.supervised.hungarian.active
-            or cfg.optimization.rounds.active
-            or cfg.loss.supervised.supervised_on_clusters.active
-        ):
+        # Optimization rounds or using supervised losses
+        elif (cfg.loss.supervised.centermaps.active or cfg.loss.supervised.hungarian.active or cfg.optimization.rounds.active or cfg.loss.supervised.supervised_on_clusters.active):
             assert not cfg.network.name == "point_rcnn", "does loss computation on its own"
             assert cfg.network.name in ("transfusion", "centerpoint"), cfg.network.name
             assert cfg.loss.supervised.centermaps.active or cfg.loss.supervised.supervised_on_clusters.active or cfg.loss.pointrcnn_loss.active
@@ -375,13 +374,12 @@ def main():
             augm_loss_tag = f"{cfg.data.train_on_box_source}_augm_boxes"
 
             forward_start_time = time.perf_counter()
+
             # Predict bounding boxes
             (pred_boxes_on_augm_t0, pred_boxes_maps_on_augm_t0, raw_activated_box_attrs_on_augm_t0, 
              aux_net_outputs_on_augm_t0) = box_predictor(None, get_network_input_pcls(cfg, train_data_source, time_key="ta", to_device=cuda0), 
                                                          None, centermaps_gt=None,)
-            
-            print("BOX PRED 2:", pred_boxes_on_augm_t0)
-            
+    
             forward_end_time = time.perf_counter()
             backward_start_time = time.perf_counter()
 

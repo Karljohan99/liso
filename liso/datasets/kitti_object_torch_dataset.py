@@ -19,11 +19,11 @@ from liso.datasets.torch_dataset_commons import (
 from liso.kabsch.shape_utils import UNKNOWN_CLASS_ID, Shape
 
 KITTI_OBJ_MOVABLE_CLASS_FREQS = {
-    "car": 14357,
-    "cyclist": 734,
+    #"car": 14357,
+    #"cyclist": 734,
     # "DontCare": 5399,
     # "Misc": 337,
-    "pedestrian": 2207,
+    #"pedestrian": 2207,
     # "Person_sitting": 56,
     # "Tram": 224,
     # "Truck": 488,
