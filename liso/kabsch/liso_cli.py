@@ -105,6 +105,7 @@ def main():
             cfg.data.tracking_cfg.min_track_age = min(cfg.data.tracking_cfg.min_track_age, 2)
             print(f"WARNING: Setting min_track_age to {cfg.data.tracking_cfg.min_track_age}, because we don't train long enough to find plausible tracks which leads to crash")
 
+    # Sanity checks and initializations
     sanity_check_cfg(cfg)
 
     log_dir = maybe_slow_log_dir
@@ -113,8 +114,7 @@ def main():
     if not checkpoint_dir.exists():
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    #cuda0 = torch.device("cuda:0")
-    cuda0 = torch.device("cpu")
+    cuda0 = torch.device("cuda:0")
 
     recursive_device_mover = RecursiveDeviceMover(cfg).to(cuda0)
 
@@ -134,6 +134,7 @@ def main():
     else:
         assert resume_from_step == 0, "this will break all mining triggering logic!"
 
+    # Main loop
     for global_step in range(resume_from_step, cfg.optimization.num_training_steps + 1):
         trigger_reset_network_optimizer_scheduler_after_val = False
         number_of_current_round = global_step // cfg.optimization.rounds.steps_per_round
@@ -148,6 +149,7 @@ def main():
 
             trigger_reset_network_optimizer_scheduler_after_val = True
 
+        # Train on mined lidar scene flow
         if (cfg.data.train_on_box_source == "mined" and (cfg.data.augmentation.boxes.active and global_step == cfg.data.augmentation.boxes.start_augm_at_step)
             or (cfg.optimization.rounds.active and (global_step % cfg.optimization.rounds.steps_per_round == 0))
             or (cfg.loss.supervised.supervised_on_clusters.active and global_step == resume_from_step)):
@@ -159,14 +161,18 @@ def main():
             gc.collect()
 
             skip_db_generation = False
+
+            # First interation
             if global_step == resume_from_step:
                 clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(cfg)
 
+                # Initialize box predictor for lidar flow
                 if cfg.data.tracking_cfg.bootstrap_detector == "flow_cluster_detector":
                     box_predictor_for_tracking = FlowClusterDetector(cfg)
                 else:
                     raise NotImplementedError(cfg.data.tracking_cfg.bootstrap_detector)
                 
+                # Set up paths for stroing mined boxes from flow
                 box_db_base_dir = get_box_dbs_path(cfg)
                 path_to_box_augm_db = box_db_base_dir / "boxes_db_global_step_0.npy"
 
@@ -175,9 +181,11 @@ def main():
                 path_to_mined_boxes_db = (box_db_base_dir / f"{cfg.optimization.rounds.raw_or_tracked}.npz")
                 tracking_args = {"export_raw_tracked_detections_to": box_db_base_dir}
 
+                # Skip DB generation if it already exists and redoing box mining is not mandatory
                 if Path(path_to_box_augm_db).exists() and Path(path_to_mined_boxes_db).exists() and not cfg.data.force_redo_box_mining:
                     skip_db_generation = True
 
+            # Non-first iteration
             else:
                 clean_dataset_for_db_creation = get_clean_train_dataset_single_batch(cfg)
                 cfg_hash = get_config_hash(cfg)[:5]
@@ -199,6 +207,7 @@ def main():
                 else:
                     tracking_args["max_augm_db_size_mb"] = cfg.data.tracking_cfg.setdefault("max_augm_db_size_mb", 250)
 
+                # Mining bounding boxes from lidar flow
                 path_to_box_augm_db, paths_to_mined_boxes_dbs = track_boxes_on_data_sequence(
                     cfg=cfg,
                     dataset=clean_dataset_for_db_creation,
@@ -209,10 +218,9 @@ def main():
                     tracking_cfg=cfg.data.tracking_cfg,
                     **tracking_args,
                 )
-                path_to_mined_boxes_db = paths_to_mined_boxes_dbs[
-                    cfg.optimization.rounds.raw_or_tracked
-                ]
+                path_to_mined_boxes_db = paths_to_mined_boxes_dbs[cfg.optimization.rounds.raw_or_tracked]
 
+            # Visualization
             visualize_augm_boxes_with_points_inside_them(
                 path_to_augm_box_db=path_to_box_augm_db,
                 num_boxes_to_visualize=200,
@@ -221,12 +229,12 @@ def main():
                 writer_prefix="augm_boxes_from_tracking",
             )
 
-            # copy the box db to log dir
+            # opy the box db to log dir
             copy_box_db_to_dir(path_to_box_augm_db, log_dir=log_dir, global_step=global_step)
             copy_box_db_to_dir(path_to_mined_boxes_db, log_dir=log_dir, global_step=global_step)
 
             if not isinstance(clean_dataset_for_db_creation, (KittiRawDataset, TartuRawDataset)):
-                # we don't have boxes or flow in the kitti raw to evaluate against
+                # We don't have boxes or flow in the kitti raw to evaluate against
                 eval_mined_boxes_loader = torch.utils.data.DataLoader(
                     clean_dataset_for_db_creation,
                     pin_memory=True,
@@ -260,6 +268,7 @@ def main():
 
             train_iterator = iter(train_loader)
 
+        # Train on groud truth lidar scene flow
         elif (
             global_step == resume_from_step  # first train iteration
             and cfg.data.train_on_box_source == "gt"
@@ -298,6 +307,8 @@ def main():
         optimizer.zero_grad()
         loss = torch.tensor(0.0, device=cuda0)
         start_dataloading_time = time.perf_counter()
+
+        # Get one training sample
         try:
             full_train_data = next(train_iterator)
         except StopIteration:
@@ -306,6 +317,7 @@ def main():
             print("=" * 20)
             print("END OF DATASET")
             print("=" * 20)
+
         end_dataloading_time = time.perf_counter()
 
         if cfg.loss.supervised.supervised_on_clusters.active or cfg.data.augmentation.boxes.active:
@@ -319,6 +331,7 @@ def main():
         if trigger_img_logging:
             need_sample_data_t0 = True
 
+        # Move tensors to cuda device
         sample_data_t0, _, augm_sample_data_t0, _ = recursive_device_mover(
             full_train_data,
             need_sample_data_t0=need_sample_data_t0,
@@ -326,11 +339,13 @@ def main():
             need_augm_sample_data_t0=need_augm_sample_data,
         )
 
+
         if cfg.loss.pointrcnn_loss.active or cfg.loss.pointpillars_loss.active:
             assert cfg.network.name in ("pointrcnn", "pointpillars"), cfg.network.name
             train_data_source = get_train_data_source(cfg, sample_data_t0, augm_sample_data_t0)
 
             forward_start_time = time.perf_counter()
+            # Predict bounding boxes
             (pointrcnn_losses_dict) = box_predictor(None,
                                                     get_network_input_pcls(cfg, train_data_source, time_key="ta", to_device=cuda0),
                                                     gt_boxes=train_data_source[cfg.data.train_on_box_source]["boxes"],
@@ -360,6 +375,7 @@ def main():
             augm_loss_tag = f"{cfg.data.train_on_box_source}_augm_boxes"
 
             forward_start_time = time.perf_counter()
+            # Predict bounding boxes
             (pred_boxes_on_augm_t0, pred_boxes_maps_on_augm_t0, raw_activated_box_attrs_on_augm_t0, 
              aux_net_outputs_on_augm_t0) = box_predictor(None, get_network_input_pcls(cfg, train_data_source, time_key="ta", to_device=cuda0), 
                                                          None, centermaps_gt=None,)
@@ -590,32 +606,14 @@ def main():
             box_predictor.train()
             trigger_reset_network_optimizer_scheduler_after_val = False
 
+    # Validations and checkpoint saving
     if not (args.profile or args.cprofile):
-        run_val(
-            val_cfg,
-            val_loader,
-            box_predictor,
-            recursive_device_mover,
-            "online_val/",
-            fwd_writer,
-            global_step,
-            max_num_steps=cfg.validation.num_val_steps,
-        )
-        # run final validation
-        run_val(
-            val_cfg,
-            val_loader,
-            box_predictor,
-            recursive_device_mover,
-            "complete_eval/",
-            fwd_writer,
-            global_step,
-            max_num_steps=cfg.validation.num_val_steps,
-        )
+        run_val(val_cfg, val_loader, box_predictor, recursive_device_mover, "online_val/", fwd_writer, global_step, max_num_steps=cfg.validation.num_val_steps)
 
-        _ = save_experiment_state(
-            checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step
-        )
+        # run final validation
+        run_val(val_cfg, val_loader, box_predictor, recursive_device_mover, "complete_eval/", fwd_writer, global_step, max_num_steps=cfg.validation.num_val_steps)
+
+        _ = save_experiment_state(checkpoint_dir, box_predictor, optimizer, lr_scheduler, global_step)
 
 
 def save_experiment_state(
@@ -634,32 +632,24 @@ def save_experiment_state(
     return save_to
 
 
-def get_network_optimizer_scheduler(
-    cfg,
-    device,
-    path_to_checkpoint=None,
-    finetune=False,
-):
+def get_network_optimizer_scheduler(cfg, device, path_to_checkpoint=None, finetune=False):
     """
     finetune: if True, we only load network weights, but not optimizer/scheduler state
     """
     # do not change order here:
     # see https://pytorch.org/tutorials/recipes/recipes/saving_and_loading_a_general_checkpoint.html#load-the-general-checkpoint
     box_predictor = select_network(cfg, device)
+
     if path_to_checkpoint is not None and not finetune:
         resume_from_step = int(Path(path_to_checkpoint).stem)
     else:
         resume_from_step = 0
-    optimizer, lr_scheduler = get_optimizer_scheduler(
-        cfg,
-        box_predictor,
-    )
+
+    optimizer, lr_scheduler = get_optimizer_scheduler(cfg, box_predictor)
+
     if path_to_checkpoint is not None:
-        box_predictor = load_checkpoint_check_sanity(
-            path_to_checkpoint=path_to_checkpoint,
-            cfg=cfg,
-            box_predictor=box_predictor,
-        )
+        box_predictor = load_checkpoint_check_sanity(path_to_checkpoint=path_to_checkpoint, cfg=cfg, box_predictor=box_predictor)
+
     if path_to_checkpoint is not None and not finetune:
         checkpoint_content = torch.load(path_to_checkpoint)
         if "optimizer" in checkpoint_content:
@@ -669,14 +659,12 @@ def get_network_optimizer_scheduler(
             lr_scheduler.load_state_dict(checkpoint_content["lr_scheduler"])
             print("Successfully loaded learning rate scheduler state dict")
 
-        num_scheduler_steps = (
-            resume_from_step
-            if "global_step" not in checkpoint_content
-            else checkpoint_content["global_step"]
-        )
+        num_scheduler_steps = (resume_from_step if "global_step" not in checkpoint_content else checkpoint_content["global_step"])
+
         try:
             for _ in range(num_scheduler_steps):
                 lr_scheduler.step()
+
         except ValueError as e:
             print(e)
             print("(this should only happen with fast test and resume)")

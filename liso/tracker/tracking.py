@@ -521,33 +521,29 @@ def track_boxes_on_data_sequence(
     log_gifs_to_disk=False,
     dump_sequences_for_visu=False,
 ):
+    
     if min_num_boxes is None:
         min_num_boxes = np.iinfo(np.uint64).max
+
     if log_freq is None:
         if verbose:
             log_freq = 1
         else:
-            log_freq = {"waymo": 10, "kitti": 10, "tartu": 10, "nuscenes": 20, "av2": 20}[
-                cfg.data.source
-            ]
+            log_freq = {"waymo": 10, "kitti": 10, "tartu": 10, "nuscenes": 20, "av2": 20}[cfg.data.source]
+
     if writer is not None:
         assert global_step is not None, global_step
     if timeout_s is None:
         timeout_s = float("inf")
 
-    align_predicted_boxes_using_flow = cfg.data.tracking_cfg.setdefault(
-        "align_predicted_boxes_using_flow", False
-    )
+    align_predicted_boxes_using_flow = cfg.data.tracking_cfg.setdefault("align_predicted_boxes_using_flow", False)
 
     num_successfull_tracks = 0
     num_tracked_sequences = 0
     taboo_dataset_indexes = set()
     min_track_obj_speed_mps = 0.0
 
-    if (
-        isinstance(box_predictor, FlowClusterDetector)
-        and cfg.data.tracking_cfg.tracker_model != "None"
-    ):
+    if (isinstance(box_predictor, FlowClusterDetector) and cfg.data.tracking_cfg.tracker_model != "None"):
         # FlowClusterDetector cannot detect still objects anyway
         # noisy SLIM flow creates FP clusters
         min_track_obj_speed_mps = tracking_cfg.flow_cluster_detector_min_obj_speed_mps
@@ -555,10 +551,12 @@ def track_boxes_on_data_sequence(
     if export_raw_tracked_detections_to:
         tracked_boxes_conf_stats = {}
         tracked_boxes_db = {}
+
     gt_boxes_db = {}
     timeout_at = time.time() + timeout_s
     box_points_snippets_db = get_empty_augm_box_db()
     max_track_id = 0
+
     if hasattr(dataset, "sequence_lens"):
         max_tqdm_count = len(dataset.sequence_lens)
     else:
