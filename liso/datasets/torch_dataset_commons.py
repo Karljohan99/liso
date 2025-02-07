@@ -577,9 +577,8 @@ class LidarDataset(torch.utils.data.Dataset):
                     type(db_key),
                 )
                 if len(some_key) != len(db_key):
-                    print(
-                        f"Warning: DB key size does not match! {len(some_key)} vs {len(db_key)}"
-                    )
+                    print(f"Warning: DB key size does not match! {len(some_key)} vs {len(db_key)}")
+
             extra_boxes = Shape.createEmpty()
         sample_content["mined"] = {"objects_t0": extra_boxes}
 
@@ -1142,7 +1141,6 @@ class LidarDataset(torch.utils.data.Dataset):
 
     def add_bev_flow(self, sample_content, point_flow_src_key, time_src_key, time_target_key):
         flow_key = f"flow_{time_src_key}_{time_target_key}"
-        print("SAMPLE_CONTENT", sample_content)
         if flow_key in sample_content[point_flow_src_key]:
             flow = sample_content[point_flow_src_key][flow_key]
             flow_gt_bev = scatter_mean_nd_numpy(
@@ -1372,31 +1370,23 @@ class LidarDataset(torch.utils.data.Dataset):
         # epe_after = np.linalg.norm(slim_flow - gt_flow, axis=-1)[~is_nan].mean()
         # assert np.allclose(epe_before, epe_after)
 
-    def augment_objects_from_category_with_trafo(
-        self, sample_content, augSensor_T_sensor, category_key
-    ):
+    def augment_objects_from_category_with_trafo(self, sample_content, augSensor_T_sensor, category_key):
         for timestamp in ("t0", "t1", "t2"):
             # assert (
             #     f"boxes_{timestamp}" not in sample_content[category_key]
             # ), sample_content[category_key].keys()
 
             possible_obj_keys = (f"objects_{timestamp}", f"boxes_{timestamp}")
-            if all(
-                [
-                    obj_key in sample_content[category_key]
-                    for obj_key in possible_obj_keys
-                ]
-            ):
+            if all([obj_key in sample_content[category_key] for obj_key in possible_obj_keys]):
                 print("WARNING: Multiple Box/object istances found- check this!")
+
             for obj_key in possible_obj_keys:
                 if obj_key in sample_content[category_key]:
                     objs = sample_content[category_key][obj_key]
                     obj_poses = objs.get_poses()
                     augm_obj_poses = augSensor_T_sensor @ obj_poses
                     # augm_angles, augm_transl = zip(*[decompose_matrix(trafo)[2:3] for trafo in augm_obj_poses])
-                    transl, rots = torch_decompose_matrix(
-                        torch.from_numpy(augm_obj_poses)
-                    )
+                    transl, rots = torch_decompose_matrix(torch.from_numpy(augm_obj_poses))
                     objs.pos = transl.numpy()
                     objs.rot = rots.numpy()
                     sample_content[category_key][obj_key] = objs
