@@ -208,10 +208,9 @@ def run_val(
     }
     nusc_metrics = NuscenesObjectDetectionMetrics(eval_movable_classes_as_one=True)
     if isinstance(val_loader.dataset, NuscenesDataset):
-        class_based_metrics = NuscenesObjectDetectionMetrics(
-            eval_movable_classes_as_one=False
-        )
+        class_based_metrics = NuscenesObjectDetectionMetrics(eval_movable_classes_as_one=False)
         metric_description = "NUSC_OFFICIAL/per_class"
+
     elif isinstance(val_loader.dataset, (KittiObjectDataset, KittiTrackingDataset)):
         metric_description = "KITTI/per_class"
         class_based_metrics = ObjectDetectionMetrics(
@@ -226,6 +225,7 @@ def run_val(
             box_matching_criterion="iou_bev",
             eval_movable_classes_as_one=False,
         )
+
     elif isinstance(val_loader.dataset, (AV2Dataset)):
         metric_description = "AV2/per_class"
         class_based_metrics = ObjectDetectionMetrics(
@@ -236,6 +236,7 @@ def run_val(
             box_matching_criterion="iou_bev",
             eval_movable_classes_as_one=False,
         )
+
     elif isinstance(val_loader.dataset, WaymoDataset):
         metric_description = "WAYMO/per_class"
         class_based_metrics = WaymoObjectDetectionMetrics(
@@ -246,6 +247,7 @@ def run_val(
                 for class_name in val_loader.dataset.movable_class_names
             ),
         )
+        
     waymo_metrics = {
         f"{int(min_range)}_{int(max_range)}m": WaymoObjectDetectionMetrics(
             min_eval_range_m=min_range,
@@ -254,9 +256,7 @@ def run_val(
         for (min_range, max_range) in range_bins
     }
     flow_metrics = FlowMetrics(range_bins=(0.0, 25.0, 50.0, 75.0, 100.0))
-    for val_step, train_data in enumerate(
-        tqdm(val_loader, total=max_num_steps, disable=False)
-    ):
+    for val_step, train_data in enumerate(tqdm(val_loader, total=max_num_steps, disable=False)):
         if max_num_steps is not None and val_step > max_num_steps:
             break
         trigger_img_logging = val_step % img_log_interval == 0
@@ -383,9 +383,7 @@ def run_val(
                     post_nms_max_boxes=500,
                 )
                 non_batched_pred_boxes = non_batched_pred_boxes[nms_pred_box_idxs]
-                if isinstance(
-                    val_loader.dataset, (KittiTrackingDataset, KittiObjectDataset)
-                ):
+                if isinstance(val_loader.dataset, (KittiTrackingDataset, KittiObjectDataset)):
                     # filter detections that fell into areas that have no labels
                     MIN_NUM_PTS_PER_BOX = 10
                     enough_points = (

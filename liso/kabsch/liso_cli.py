@@ -11,6 +11,7 @@ from liso.datasets.create_gt_augm_database import (
     build_augmentation_db_from_actual_groundtruth,
 )
 from liso.datasets.kitti_raw_torch_dataset import KittiRawDataset
+from liso.datasets.tartu_raw_torch_dataset import TartuRawDataset
 from liso.datasets.torch_dataset_commons import lidar_dataset_collate_fn, worker_init_fn
 from liso.eval.eval_ours import run_val
 from liso.kabsch.main_utils import (
@@ -226,7 +227,7 @@ def main():
             copy_box_db_to_dir(path_to_box_augm_db, log_dir=log_dir, global_step=global_step)
             copy_box_db_to_dir(path_to_mined_boxes_db, log_dir=log_dir, global_step=global_step)
 
-            if not isinstance(clean_dataset_for_db_creation, KittiRawDataset):
+            if not isinstance(clean_dataset_for_db_creation, KittiRawDataset, TartuRawDataset):
                 # we don't have boxes or flow in the kitti raw to evaluate against
                 eval_mined_boxes_loader = torch.utils.data.DataLoader(
                     clean_dataset_for_db_creation,
