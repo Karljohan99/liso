@@ -5,5 +5,7 @@ visualize/camera_imgs
 visualize/pcd_files
 visualize/processed_data
 visualize/slim_static_flow
+visualize/kitti_mined_dbs
+visualize/tartu_mined_dbs
 *.sif
 *.tar

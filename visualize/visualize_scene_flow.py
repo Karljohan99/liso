@@ -5,15 +5,7 @@ import argparse
 
 def create_arrow(start, end, scale=0.8):
     """
-    Creates an arrow from the center to the heading direction.
-    
-    Args:
-        center (tuple): (x, y, z) center of bounding box.
-        heading (tuple): (x, y, z) heading direction.
-        scale (float): Scale of the arrow.
-
-    Returns:
-        o3d.geometry.TriangleMesh: 3D arrow mesh.
+    Creates an arrow from the start and enf points.
     """
     dx, dy, _ = end - start
     yaw = np.arctan2(dy, dx)  # Compute angle in radians
@@ -41,12 +33,6 @@ def create_arrow(start, end, scale=0.8):
     # Set arrow color
     arrow.paint_uniform_color([0, 0, 1])  # Blue color for heading arrow
 
-    """
-    if abs(yaw) < np.pi/2 or abs(yaw) > 3*np.pi/2:
-        arrow.paint_uniform_color([1, 0, 0])  # Red color for heading arrow
-    else:
-        arrow.paint_uniform_color([0, 0, 1])  # Blue color for heading arrow
-    """
     return arrow
 
 def visualize_scene_flow(scene_flow):
@@ -83,28 +69,32 @@ def visualize_scene_flow(scene_flow):
 
     return arrows
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data")
-    parser.add_argument("--i")
-    args = parser.parse_args()
-
-    if args.data == "kitti":
-        point_cloud_path = f"pcd_files/00000001{args.i}.bin" 
+def get_scene_elements(data, sequence, i):
+    """
+    Returns point cloud and arrow geometries in Open3D format.
+    """
+    if data == "kitti":
+        point_cloud_path = f"pcd_files/kitti/{sequence}/0000000{i}.bin" 
         pcd = o3d.geometry.PointCloud()
         point_cloud = np.fromfile(point_cloud_path, dtype=np.float32)  # Load raw data
         point_cloud = point_cloud.reshape(-1, 4)
         pcd.points = o3d.utility.Vector3dVector(point_cloud[:, :3])
+
+        if sequence == "kitti11":
+            slim_pred_path = f"slim_static_flow/kitti/{sequence}/2011_09_26_0011_0000000{i}.npz"
+        elif sequence == "kitti13":
+            slim_pred_path = f"slim_static_flow/kitti/{sequence}/2011_09_26_0013_0000000{i}.npz"
+        else:
+            raise ValueError("Unknown sequence")
         
-        slim_pred_path = f"slim_static_flow/2011_09_26_0011_00000001{args.i}.npz"
-    elif args.data == "tartu":
-        point_cloud_path = f"pcd_files/0002{int(args.i)}.pcd" 
+    elif data == "tartu":
+        point_cloud_path = f"pcd_files/tartu//000{i}.pcd"
         pcd = o3d.io.read_point_cloud(point_cloud_path)
         
-        slim_pred_path = f"slim_static_flow/2024-04-02-12-11-04_mapping_tartu_streets_0_2{args.i}.npz"
+        slim_pred_path = f"slim_static_flow/tartu/{sequence}/2024-04-02-12-11-04_mapping_tartu_streets_0_{i}.npz"
+    
     else:
-        raise ValueError
+        raise ValueError("Unknown dataset")
     
     gray_color = np.full((len(pcd.points), 3), 0.5)  # 0.5 = medium gray
     pcd.colors = o3d.utility.Vector3dVector(gray_color)
@@ -113,6 +103,20 @@ if __name__ == "__main__":
     scene_flow_data = data['bev_raw_flow_t0_t1']
 
     arrows = visualize_scene_flow(scene_flow_data)
+
+    return pcd, arrows
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data")
+    parser.add_argument("--sequence")
+    parser.add_argument("--i")
+    args = parser.parse_args()
+
+    i = str(args.i).zfill(3)
+
+    pcd, arrows = get_scene_elements(args.data, args.sequence, i)
 
     o3d.visualization.draw_geometries([pcd] + arrows)
 
