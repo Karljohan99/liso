@@ -7,5 +7,6 @@ visualize/processed_data
 visualize/slim_static_flow
 visualize/kitti_mined_dbs
 visualize/tartu_mined_dbs
+visualize/aw_mini_tracked_objs
 *.sif
 *.tar
