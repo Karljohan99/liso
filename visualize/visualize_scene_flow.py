@@ -88,10 +88,18 @@ def get_scene_elements(data, sequence, i):
             raise ValueError("Unknown sequence")
         
     elif data == "tartu":
-        point_cloud_path = f"pcd_files/tartu//000{i}.pcd"
+        if sequence == "tartu2":
+            pcd_i = "64"
+            bag_name = "2024-04-12-15-53-45_mapping_tartu_streets_47_64"
+        else:
+            pcd_i = "00"
+            bag_name = "2024-04-02-12-11-04_mapping_tartu_streets_0_"
+
+
+        point_cloud_path = f"pcd_files/tartu/{sequence}/0{pcd_i}{i}.pcd"
         pcd = o3d.io.read_point_cloud(point_cloud_path)
         
-        slim_pred_path = f"slim_static_flow/tartu/{sequence}/2024-04-02-12-11-04_mapping_tartu_streets_0_{i}.npz"
+        slim_pred_path = f"slim_static_flow/tartu/{sequence}/{bag_name}{i}.npz"
     
     else:
         raise ValueError("Unknown dataset")

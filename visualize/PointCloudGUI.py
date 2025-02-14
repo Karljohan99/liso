@@ -32,6 +32,11 @@ class PointCloudApp:
         self.bbox_len = 0
         self.arrow_len = 0
         self.index = "000"
+        self.points_clusterer = "liso"
+
+        self.dataset = "tartu"
+        self.sequence = "tartu1"
+        self.index = "210"
 
         # Setup the camera
         self.scene.setup_camera(60, o3d.geometry.AxisAlignedBoundingBox(np.array([-100.0]*3), np.array([100.0]*3)), np.zeros((3, 1)))
@@ -40,14 +45,17 @@ class PointCloudApp:
         self.dataset_textbox = gui.TextEdit()
         self.dataset_textbox.placeholder_text = "Enter dataset"
         self.dataset_textbox.set_on_value_changed(self.on_dataset_changed)
+        self.dataset_textbox.text_value = "tartu"
 
         self.sequence_textbox = gui.TextEdit()
         self.sequence_textbox.placeholder_text = "Enter sequence"
         self.sequence_textbox.set_on_value_changed(self.on_sequence_changed)
+        self.sequence_textbox.text_value = "tartu1"
 
         self.index_textbox = gui.TextEdit()
         self.index_textbox.placeholder_text = "Seq Idx"
         self.index_textbox.set_on_value_changed(self.on_index_changed)
+        self.index_textbox.text_value = "210"
 
         self.ok_button = gui.Button("OK")
         self.ok_button.set_on_clicked(self.visualize_point_cloud)
@@ -61,6 +69,10 @@ class PointCloudApp:
         self.switch_mode_button = gui.Button("Mined boxes")
         self.switch_mode_button.set_on_clicked(self.switch_mode)
 
+        self.use_clusterer_button = gui.Button("LSIO clusterer")
+        self.use_clusterer_button.set_on_clicked(self.use_clusterer)
+        self.use_clusterer_button.background_color = gui.Color(0.8, 0.2, 0.2)
+
         # Add components to window
         self.window.add_child(self.dataset_textbox)
         self.window.add_child(self.sequence_textbox)
@@ -69,6 +81,7 @@ class PointCloudApp:
         self.window.add_child(self.back_button)
         self.window.add_child(self.forward_button)
         self.window.add_child(self.switch_mode_button)
+        self.window.add_child(self.use_clusterer_button)
 
         # Set layout
         self.window.set_on_layout(self.on_layout)
@@ -113,11 +126,27 @@ class PointCloudApp:
             self.mode = "mined_dbs"
             self.switch_mode_button.text = "Mined boxes"
 
+    def use_clusterer(self):
+        if self.points_clusterer == "liso":
+            self.points_clusterer = "simple"
+            self.use_clusterer_button.background_color = gui.Color(0.2, 0.75, 0.2)
+            self.use_clusterer_button.text = "Simple clusterer"
+
+        elif self.points_clusterer == "simple":
+            self.points_clusterer = "aw_mini"
+            self.use_clusterer_button.background_color = gui.Color(0.5, 0.5, 1.0)
+            self.use_clusterer_button.text = "AW Mini clusterer"
+
+        elif self.points_clusterer == "aw_mini":
+            self.points_clusterer = "liso"
+            self.use_clusterer_button.background_color = gui.Color(0.8, 0.2, 0.2)
+            self.use_clusterer_button.text = "LISO clusterer"
+
     def visualize_point_cloud(self):
 
         try:
             if self.mode == "mined_dbs":
-                pcd, boxes = get_mined_dbs_elements(self.dataset, self.index)
+                pcd, boxes = get_mined_dbs_elements(self.dataset, self.sequence, self.index, self.points_clusterer)
                 
                 # Remove and re-add the geometry to apply changes
                 self.scene.scene.remove_geometry("pointcloud")
@@ -185,6 +214,9 @@ class PointCloudApp:
         
         self.switch_mode_button.frame = gui.Rect(self.window.content_rect.x + 10, 
                                            10, 150, 30)
+        
+        self.use_clusterer_button.frame = gui.Rect(self.window.content_rect.x + 170, 
+                                           10, 180, 30)
 
     def run(self):
         self.app.run()
