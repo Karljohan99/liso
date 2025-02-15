@@ -665,369 +665,374 @@ def track_boxes_on_data_sequence(
             odoms_t0_t1 = []
             
             for time_idx, data_el in enumerate(tqdm(subset_loader, disable=False, desc="Subset loader")):
-                sample_data_t0, _, _, meta = data_el
-                sample_ids = meta["sample_id"]
-                
-                assert len(sample_ids) == 1, "batch size 1 required"
-                assert sample_ids[0] == seq[time_idx].sample_name, (sample_ids[0], seq[time_idx].sample_name)
-                
-                sample_id = sample_ids[0]
-                sample_ids_in_seq.append(sample_id)
-                network_input_pcls_ta = get_network_input_pcls(cfg, sample_data_t0, time_key="ta", to_device=cuda0)
+                try:
+                    sample_data_t0, _, _, meta = data_el
+                    sample_ids = meta["sample_id"]
+                    
+                    assert len(sample_ids) == 1, "batch size 1 required"
+                    assert sample_ids[0] == seq[time_idx].sample_name, (sample_ids[0], seq[time_idx].sample_name)
+                    
+                    sample_id = sample_ids[0]
+                    sample_ids_in_seq.append(sample_id)
+                    network_input_pcls_ta = get_network_input_pcls(cfg, sample_data_t0, time_key="ta", to_device=cuda0)
 
-                pcl_no_ground = sample_data_t0["pcl_ta"]["pcl"][0].to(cuda0)
-                
-                if isinstance(box_predictor, (FlowClusterDetector,)):
-                    pred_boxes = box_predictor(sample_data_t0, writer=writer, writer_prefix=writer_prefix, global_step=global_step + num_successfull_tracks)
-                    pred_boxes = pred_boxes.to(cuda0)
-                else:
-                    if cfg.network.name == "echo_gt":
-                        gt_echo_boxes = sample_data_t0["gt"]["boxes"].to(cuda0)
+                    pcl_no_ground = sample_data_t0["pcl_ta"]["pcl"][0].to(cuda0)
+                    
+                    if isinstance(box_predictor, (FlowClusterDetector,)):
+                        pred_boxes = box_predictor(sample_data_t0, writer=writer, writer_prefix=writer_prefix, global_step=global_step + num_successfull_tracks)
+                        pred_boxes = pred_boxes.to(cuda0)
                     else:
-                        gt_echo_boxes = None
-                    
-                    pred_boxes, _, _, _ = box_predictor(
-                        img_t0=None,
-                        pcls_t0=network_input_pcls_ta,
-                        gt_boxes=gt_echo_boxes,
-                        centermaps_gt=None,
-                        train=False,
-                    )
-                    del gt_echo_boxes
-                    
-                    if (
-                        cfg.box_prediction.activations.probs == "none"
-                        and not isinstance(box_predictor, (FlowClusterDetector,))
-                        and not (isinstance(box_predictor, BoxLearner) and isinstance(
-                                box_predictor.model,
-                                (PointPillarsWrapper, PointRCNNWrapper),
-                            )
-                        )
-                    ):
-                        pred_boxes.probs = torch.sigmoid(pred_boxes.probs)
-                pred_boxes = pred_boxes[0]
-
-                nms_pred_box_idxs = iou_based_nms(
-                    pred_boxes,
-                    overlap_threshold=cfg.nms_iou_threshold,
-                    pre_nms_max_boxes=tracking_cfg.max_num_boxes_before_nms,
-                    post_nms_max_boxes=tracking_cfg.max_num_boxes_after_nms,
-                )
-                pred_boxes = pred_boxes[nms_pred_box_idxs].detach()
-
-                assert len(pred_boxes.shape) == 1, "batching not supported"
-
-                if pred_boxes.shape[0] > 0 and tracking_cfg.drop_boxes_on_bev_boundaries:
-
-                    is_box_fully_visible_in_bev = is_boxes_clearly_in_bev_range(
-                        pred_boxes,
-                        bev_range_m=torch.tensor(cfg.data.bev_range_m, device=pred_boxes.pos.device),
-                    )
-                    
-                    pred_boxes.valid = is_box_fully_visible_in_bev
-                    if verbose:
-                        print("Dropped ", torch.count_nonzero(~is_box_fully_visible_in_bev).cpu().numpy(), "/",
-                            pred_boxes.shape[0], " boxes outside of BEV at time ", time_idx)
+                        if cfg.network.name == "echo_gt":
+                            gt_echo_boxes = sample_data_t0["gt"]["boxes"].to(cuda0)
+                        else:
+                            gt_echo_boxes = None
                         
-                    pred_boxes = pred_boxes.drop_padding_boxes()
-
-                if pred_boxes.shape[0] > 0 and tracking_cfg.min_points_in_box > 0:
-                    pred_boxes_for_num_points_filtering = pred_boxes.clone()
-                    if pred_boxes.dims.shape[-1] == 2:
-                        dummy_height = 2.0 * torch.ones_like(pred_boxes.dims[..., [0]])
-                        dummy_dims = torch.cat([pred_boxes_for_num_points_filtering.dims, dummy_height], dim=-1)
-                        pred_boxes_for_num_points_filtering.dims = dummy_dims
-                    
-                    if pred_boxes.pos.shape[-1] == 2:
-                        dummy_z_coord = -1.0 * torch.ones_like(
-                            pred_boxes.dims[..., [0]]
+                        pred_boxes, _, _, _ = box_predictor(
+                            img_t0=None,
+                            pcls_t0=network_input_pcls_ta,
+                            gt_boxes=gt_echo_boxes,
+                            centermaps_gt=None,
+                            train=False,
                         )
-                        dummy_pos = torch.cat(
-                            [
-                                pred_boxes_for_num_points_filtering.pos,
-                                dummy_z_coord,
-                            ],
-                            dim=-1,
-                        )
-                        pred_boxes_for_num_points_filtering.pos = dummy_pos
-
-                    point_is_in_boxes_mask = get_points_in_boxes_mask(
-                        pred_boxes_for_num_points_filtering,
-                        homogenize_pcl(pcl_no_ground[:, :3]),
-                    )
-                    num_points_in_box = point_is_in_boxes_mask.sum(dim=0)
-                    box_has_enough_points = (
-                        num_points_in_box >= tracking_cfg.min_points_in_box
-                    )
-                    if verbose:
-                        print(
-                            "Dropped ",
-                            torch.count_nonzero(~box_has_enough_points).cpu().numpy(),
-                            "/",
-                            pred_boxes.shape[0],
-                            " boxes with less than ",
-                            tracking_cfg.min_points_in_box,
-                            " points at time: ",
-                            time_idx,
-                        )
-                    # print(num_points_in_box[box_has_enough_points])
-                    pred_boxes.valid = box_has_enough_points
-                    pred_boxes = pred_boxes.drop_padding_boxes()
-                # SECTION export detections
-                box_is_in_annotated_fov = torch.ones_like(pred_boxes.valid)
-                if export_raw_tracked_detections_to:
-                    batch_idx = 0
-                    raw_export_boxes = pred_boxes.clone()
-                    if export_detections_only_in_annotated_fov and isinstance(
-                        dataset, (KittiTrackingDataset, KittiObjectDataset)
-                    ):
-                        # filter detections that fell into areas that have no labels
-                        box_is_in_annotated_fov = (
-                            count_box_points_in_kitti_annotated_fov(
-                                raw_export_boxes,
-                                sample_data_t0["pcl_full_ta"][batch_idx].to(cuda0),
+                        del gt_echo_boxes
+                        
+                        if (
+                            cfg.box_prediction.activations.probs == "none"
+                            and not isinstance(box_predictor, (FlowClusterDetector,))
+                            and not (isinstance(box_predictor, BoxLearner) and isinstance(
+                                    box_predictor.model,
+                                    (PointPillarsWrapper, PointRCNNWrapper),
+                                )
                             )
-                            >= tracking_cfg.min_points_in_box
-                        )
-                        raw_export_boxes.valid = (
-                            box_is_in_annotated_fov & raw_export_boxes.valid
-                        )
-                        raw_export_boxes = raw_export_boxes.drop_padding_boxes()
-                    assert box_is_in_annotated_fov.shape == pred_boxes.shape, (
-                        box_is_in_annotated_fov.shape,
-                        pred_boxes.shape,
+                        ):
+                            pred_boxes.probs = torch.sigmoid(pred_boxes.probs)
+                    pred_boxes = pred_boxes[0]
+
+                    nms_pred_box_idxs = iou_based_nms(
+                        pred_boxes,
+                        overlap_threshold=cfg.nms_iou_threshold,
+                        pre_nms_max_boxes=tracking_cfg.max_num_boxes_before_nms,
+                        post_nms_max_boxes=tracking_cfg.max_num_boxes_after_nms,
                     )
+                    pred_boxes = pred_boxes[nms_pred_box_idxs].detach()
 
-                    num_raw_export_boxes = raw_export_boxes.shape[0]
-                    max_confidence_in_sample = float("-inf")
-                    if num_raw_export_boxes > 0:
-                        assert (
-                            sample_id not in raw_boxes_db
-                        ), f"overwriting occurs for {sample_id}!"
-                        raw_boxes_db[sample_id] = {
-                            "lidar_T_box": raw_export_boxes.get_poses().cpu().numpy(),
-                            "raw_box": raw_export_boxes.cpu().numpy().__dict__,
-                        }
-                        max_confidence_in_sample = float(
-                            raw_export_boxes.probs.cpu().numpy().max()
+                    assert len(pred_boxes.shape) == 1, "batching not supported"
+
+                    if pred_boxes.shape[0] > 0 and tracking_cfg.drop_boxes_on_bev_boundaries:
+
+                        is_box_fully_visible_in_bev = is_boxes_clearly_in_bev_range(
+                            pred_boxes,
+                            bev_range_m=torch.tensor(cfg.data.bev_range_m, device=pred_boxes.pos.device),
                         )
-                    elif verbose:
-                        print(f"No RAW boxes found in {sample_id} - skipping")
+                        
+                        pred_boxes.valid = is_box_fully_visible_in_bev
+                        if verbose:
+                            print("Dropped ", torch.count_nonzero(~is_box_fully_visible_in_bev).cpu().numpy(), "/",
+                                pred_boxes.shape[0], " boxes outside of BEV at time ", time_idx)
+                            
+                        pred_boxes = pred_boxes.drop_padding_boxes()
 
-                if dump_sequences_for_visu:
-                    maybe_gt_boxes = sample_data_t0.get("gt", {}).get("boxes", None)
-                    if maybe_gt_boxes is not None:
-                        maybe_gt_boxes = (
-                            maybe_gt_boxes[batch_idx]
+                    if pred_boxes.shape[0] > 0 and tracking_cfg.min_points_in_box > 0:
+                        pred_boxes_for_num_points_filtering = pred_boxes.clone()
+                        if pred_boxes.dims.shape[-1] == 2:
+                            dummy_height = 2.0 * torch.ones_like(pred_boxes.dims[..., [0]])
+                            dummy_dims = torch.cat([pred_boxes_for_num_points_filtering.dims, dummy_height], dim=-1)
+                            pred_boxes_for_num_points_filtering.dims = dummy_dims
+                        
+                        if pred_boxes.pos.shape[-1] == 2:
+                            dummy_z_coord = -1.0 * torch.ones_like(
+                                pred_boxes.dims[..., [0]]
+                            )
+                            dummy_pos = torch.cat(
+                                [
+                                    pred_boxes_for_num_points_filtering.pos,
+                                    dummy_z_coord,
+                                ],
+                                dim=-1,
+                            )
+                            pred_boxes_for_num_points_filtering.pos = dummy_pos
+
+                        point_is_in_boxes_mask = get_points_in_boxes_mask(
+                            pred_boxes_for_num_points_filtering,
+                            homogenize_pcl(pcl_no_ground[:, :3]),
+                        )
+                        num_points_in_box = point_is_in_boxes_mask.sum(dim=0)
+                        box_has_enough_points = (
+                            num_points_in_box >= tracking_cfg.min_points_in_box
+                        )
+                        if verbose:
+                            print(
+                                "Dropped ",
+                                torch.count_nonzero(~box_has_enough_points).cpu().numpy(),
+                                "/",
+                                pred_boxes.shape[0],
+                                " boxes with less than ",
+                                tracking_cfg.min_points_in_box,
+                                " points at time: ",
+                                time_idx,
+                            )
+                        # print(num_points_in_box[box_has_enough_points])
+                        pred_boxes.valid = box_has_enough_points
+                        pred_boxes = pred_boxes.drop_padding_boxes()
+                    # SECTION export detections
+                    box_is_in_annotated_fov = torch.ones_like(pred_boxes.valid)
+                    if export_raw_tracked_detections_to:
+                        batch_idx = 0
+                        raw_export_boxes = pred_boxes.clone()
+                        if export_detections_only_in_annotated_fov and isinstance(
+                            dataset, (KittiTrackingDataset, KittiObjectDataset)
+                        ):
+                            # filter detections that fell into areas that have no labels
+                            box_is_in_annotated_fov = (
+                                count_box_points_in_kitti_annotated_fov(
+                                    raw_export_boxes,
+                                    sample_data_t0["pcl_full_ta"][batch_idx].to(cuda0),
+                                )
+                                >= tracking_cfg.min_points_in_box
+                            )
+                            raw_export_boxes.valid = (
+                                box_is_in_annotated_fov & raw_export_boxes.valid
+                            )
+                            raw_export_boxes = raw_export_boxes.drop_padding_boxes()
+                        assert box_is_in_annotated_fov.shape == pred_boxes.shape, (
+                            box_is_in_annotated_fov.shape,
+                            pred_boxes.shape,
+                        )
+
+                        num_raw_export_boxes = raw_export_boxes.shape[0]
+                        max_confidence_in_sample = float("-inf")
+                        if num_raw_export_boxes > 0:
+                            assert (
+                                sample_id not in raw_boxes_db
+                            ), f"overwriting occurs for {sample_id}!"
+                            raw_boxes_db[sample_id] = {
+                                "lidar_T_box": raw_export_boxes.get_poses().cpu().numpy(),
+                                "raw_box": raw_export_boxes.cpu().numpy().__dict__,
+                            }
+                            max_confidence_in_sample = float(
+                                raw_export_boxes.probs.cpu().numpy().max()
+                            )
+                        elif verbose:
+                            print(f"No RAW boxes found in {sample_id} - skipping")
+
+                    if dump_sequences_for_visu:
+                        maybe_gt_boxes = sample_data_t0.get("gt", {}).get("boxes", None)
+                        if maybe_gt_boxes is not None:
+                            maybe_gt_boxes = (
+                                maybe_gt_boxes[batch_idx]
+                                .clone()
+                                .drop_padding_boxes()
+                                .cpu()
+                                .numpy()
+                                .__dict__
+                            )
+
+                        pcl_no_ground_for_visu = (
+                            sample_data_t0["pcl_ta"]["pcl"][0].clone().cpu().numpy()
+                        )
+                        flow_no_ground = (
+                            sample_data_t0[cfg.data.flow_source]["flow_ta_tb"][batch_idx]
                             .clone()
-                            .drop_padding_boxes()
                             .cpu()
                             .numpy()
-                            .__dict__
+                        )
+                        dyn_flow_no_ground = (
+                            flow_no_ground
+                            - np.einsum(
+                                "ij,nj->ni",
+                                sample_data_t0[cfg.data.odom_source]["odom_tb_ta"][
+                                    batch_idx
+                                ]
+                                - np.eye(4),
+                                np.concatenate(
+                                    [
+                                        pcl_no_ground_for_visu[:, :3],
+                                        np.ones_like(pcl_no_ground_for_visu[:, [0]]),
+                                    ],
+                                    axis=-1,
+                                ),
+                            )[:, :3]
+                        )
+                        full_pcl_with_ground = (
+                            sample_data_t0["pcl_full_w_ground_ta"][batch_idx]
+                            .clone()
+                            .cpu()
+                            .numpy()
                         )
 
-                    pcl_no_ground_for_visu = (
-                        sample_data_t0["pcl_ta"]["pcl"][0].clone().cpu().numpy()
-                    )
-                    flow_no_ground = (
-                        sample_data_t0[cfg.data.flow_source]["flow_ta_tb"][batch_idx]
-                        .clone()
-                        .cpu()
-                        .numpy()
-                    )
-                    dyn_flow_no_ground = (
-                        flow_no_ground
-                        - np.einsum(
-                            "ij,nj->ni",
-                            sample_data_t0[cfg.data.odom_source]["odom_tb_ta"][
-                                batch_idx
-                            ]
-                            - np.eye(4),
-                            np.concatenate(
-                                [
-                                    pcl_no_ground_for_visu[:, :3],
-                                    np.ones_like(pcl_no_ground_for_visu[:, [0]]),
-                                ],
-                                axis=-1,
-                            ),
-                        )[:, :3]
-                    )
-                    full_pcl_with_ground = (
-                        sample_data_t0["pcl_full_w_ground_ta"][batch_idx]
-                        .clone()
-                        .cpu()
-                        .numpy()
-                    )
-
-                    kdt = KDTree(n_neighbors=1, metric="L2", leaf_size=20)
-                    kdt.fit(pcl_no_ground_for_visu[:, :3])
-                    dist, pcl_knn_idxs = kdt.kneighbors(full_pcl_with_ground[:, :3])
-                    dist = np.squeeze(dist, axis=-1)
-                    pcl_knn_idxs = np.squeeze(pcl_knn_idxs, axis=-1)
-                    dist_too_far = dist > 0.1
-                    dyn_flow_w_ground = np.zeros(
-                        (full_pcl_with_ground.shape[0], 3), dtype=np.float32
-                    )
-                    dyn_flow_w_ground[~dist_too_far] = dyn_flow_no_ground[
-                        pcl_knn_idxs[~dist_too_far]
-                    ]
-
-                    visu_boxes_db[sample_id] = {
-                        "flow": dyn_flow_w_ground.astype(np.float32),
-                        "points_xyzi": sample_data_t0["pcl_full_w_ground_ta"][batch_idx]
-                        .clone()
-                        .cpu()
-                        .numpy()
-                        .astype(np.float32),
-                        "pred": {"boxes": pred_boxes.clone().cpu().numpy().__dict__},
-                        "gt": {
-                            "boxes": maybe_gt_boxes,
-                        },
-                    }
-
-                # END SECTION export detections
-                pred_boxes = pred_boxes[None]
-                point_cloud_ta = sample_data_t0["pcl_ta"]["pcl"][..., :3].to(cuda0)
-                valid_mask_ta = sample_data_t0["pcl_ta"]["pcl_is_valid"].to(cuda0)
-
-                (
-                    odom_ta_tb,
-                    pointwise_flow_ta_tb,
-                    gt_odom_ta_tb,
-                    gt_flow_ta_tb,
-                ) = get_odometry_gt_odmetry_and_flow(
-                    dataset, cfg, sample_data_t0, cuda0
-                )
-
-                (
-                    fg_kabsch_trafos_t0_t1,
-                    odom_t0_t1,
-                    bg_kabsch_trafo_t0_t1,
-                    _,
-                    st1_T_pred_bt1,
-                ) = propagate_boxes_forward_using_flow(
-                    pred_boxes,
-                    point_cloud_ta,
-                    valid_mask_ta,
-                    pointwise_flow_ta_tb=pointwise_flow_ta_tb,
-                    odom_t0_t1=odom_ta_tb,
-                    device=cuda0,
-                )
-
-                (
-                    _,
-                    _,
-                    _,
-                    _,
-                    st_minus_1_T_pred_bt_minus1,
-                ) = propagate_boxes_forward_using_flow(
-                    pred_boxes,
-                    point_cloud_ta,
-                    valid_mask_ta,
-                    pointwise_flow_ta_tb=-1.0 * pointwise_flow_ta_tb,
-                    odom_t0_t1=torch.linalg.inv(odom_ta_tb),
-                    device=cuda0,
-                )
-
-                if align_predicted_boxes_using_flow and not isinstance(
-                    box_predictor, (FlowClusterDetector,)
-                ):
-                    pred_boxes = soft_align_box_flip_orientation_with_motion_trafo(
-                        boxes=pred_boxes,
-                        fg_kabsch_trafos=fg_kabsch_trafos_t0_t1,
-                        bg_kabsch_trafo=bg_kabsch_trafo_t0_t1,
-                    )
-
-                pred_boxes = pred_boxes[0].cpu()
-
-                odom_t0_t1 = odom_t0_t1.detach().cpu()
-
-                pcl_no_ground_sensor_cosy = pcl_no_ground.detach()
-                point_clouds_sensor_cosy.append(pcl_no_ground_sensor_cosy.cpu())
-                point_cloud_row_idxs.append(
-                    sample_data_t0["lidar_rows_ta"][0].detach().cpu()
-                )
-                odoms_t0_t1.append(odom_t0_t1.detach().cpu())
-                assert len(pred_boxes.pos.shape) == 2
-                assert len(pred_boxes.rot.shape) == 2
-                assert odom_t0_t1.shape == (4, 4), odom_t0_t1.shape
-                assert odom_t0_t1.dtype == torch.float64, odom_t0_t1.dtype
-
-                if export_raw_tracked_detections_to:
-                    per_box_extra_attributes = []
-                    box_is_in_annotated_fov = box_is_in_annotated_fov.cpu().numpy()
-                    for box_idx in range(pred_boxes.shape[0]):
-                        per_box_extra_attributes.append(
-                            {
-                                "is_in_annotated_fov": box_is_in_annotated_fov[box_idx],
-                                "sample_id": sample_id,
-                            }
+                        kdt = KDTree(n_neighbors=1, metric="L2", leaf_size=20)
+                        kdt.fit(pcl_no_ground_for_visu[:, :3])
+                        dist, pcl_knn_idxs = kdt.kneighbors(full_pcl_with_ground[:, :3])
+                        dist = np.squeeze(dist, axis=-1)
+                        pcl_knn_idxs = np.squeeze(pcl_knn_idxs, axis=-1)
+                        dist_too_far = dist > 0.1
+                        dyn_flow_w_ground = np.zeros(
+                            (full_pcl_with_ground.shape[0], 3), dtype=np.float32
                         )
-                else:
-                    per_box_extra_attributes = [
-                        None,
-                    ] * pred_boxes.shape[0]
-
-                simple_tracker.update(
-                    pred_boxes,
-                    predicted_box_poses_stiii=st1_T_pred_bt1[0].cpu(),
-                    predicted_box_poses_sti=st_minus_1_T_pred_bt_minus1[0].cpu(),
-                    odom_stii_stiii=odom_t0_t1,
-                    per_box_extra_attributes_tii=per_box_extra_attributes,
-                )
-                gt_boxes = sample_data_t0.get("gt", {}).get("boxes", None)
-                if gt_boxes is not None:
-                    gt_boxes_db[sample_id] = {
-                        "raw_box": gt_boxes[0].detach().cpu().numpy().__dict__
-                    }
-                if trigger_gif_logging:
-                    pcl_box_gif_summary.update_pcl_npy_imgs(
-                        pcl_no_ground_sensor_cosy, sample_id
-                    )
-                if trigger_img_logging:
-                    if gt_boxes:
-                        gt_boxes = gt_boxes.to(cuda0)
-                    else:
-                        gt_boxes = Shape.createEmpty().to_tensor().to(cuda0)
-                    (
-                        _,
-                        _,
-                        _,
-                        _,
-                        st1_T_gt_pred_bt1,
-                    ) = propagate_boxes_forward_using_flow(
-                        gt_boxes,
-                        point_cloud_ta,
-                        valid_mask_ta,
-                        gt_flow_ta_tb.to(cuda0),
-                        odom_t0_t1=gt_odom_ta_tb,
-                        device=cuda0,
-                    )
-                    (
-                        _,
-                        _,
-                        _,
-                        _,
-                        st_minus_1_T_gt_bt_minus1,
-                    ) = propagate_boxes_forward_using_flow(
-                        gt_boxes,
-                        point_cloud_ta,
-                        valid_mask_ta,
-                        pointwise_flow_ta_tb=-1.0 * gt_flow_ta_tb.to(cuda0),
-                        odom_t0_t1=torch.linalg.inv(gt_odom_ta_tb),
-                        device=cuda0,
-                    )
-                    gt_boxes = gt_boxes[0].detach().cpu()
-                    gt_tracker.update(
-                        gt_boxes,
-                        st1_T_gt_pred_bt1[0].detach().cpu(),
-                        st_minus_1_T_gt_bt_minus1[0].detach().cpu(),
-                        gt_odom_ta_tb.detach().cpu(),
-                        per_box_extra_attributes_tii=[
-                            None,
+                        dyn_flow_w_ground[~dist_too_far] = dyn_flow_no_ground[
+                            pcl_knn_idxs[~dist_too_far]
                         ]
-                        * gt_boxes.shape[0],
+
+                        visu_boxes_db[sample_id] = {
+                            "flow": dyn_flow_w_ground.astype(np.float32),
+                            "points_xyzi": sample_data_t0["pcl_full_w_ground_ta"][batch_idx]
+                            .clone()
+                            .cpu()
+                            .numpy()
+                            .astype(np.float32),
+                            "pred": {"boxes": pred_boxes.clone().cpu().numpy().__dict__},
+                            "gt": {
+                                "boxes": maybe_gt_boxes,
+                            },
+                        }
+
+                    # END SECTION export detections
+                    pred_boxes = pred_boxes[None]
+                    point_cloud_ta = sample_data_t0["pcl_ta"]["pcl"][..., :3].to(cuda0)
+                    valid_mask_ta = sample_data_t0["pcl_ta"]["pcl_is_valid"].to(cuda0)
+
+                    (
+                        odom_ta_tb,
+                        pointwise_flow_ta_tb,
+                        gt_odom_ta_tb,
+                        gt_flow_ta_tb,
+                    ) = get_odometry_gt_odmetry_and_flow(
+                        dataset, cfg, sample_data_t0, cuda0
                     )
+
+                    (
+                        fg_kabsch_trafos_t0_t1,
+                        odom_t0_t1,
+                        bg_kabsch_trafo_t0_t1,
+                        _,
+                        st1_T_pred_bt1,
+                    ) = propagate_boxes_forward_using_flow(
+                        pred_boxes,
+                        point_cloud_ta,
+                        valid_mask_ta,
+                        pointwise_flow_ta_tb=pointwise_flow_ta_tb,
+                        odom_t0_t1=odom_ta_tb,
+                        device=cuda0,
+                    )
+
+                    (
+                        _,
+                        _,
+                        _,
+                        _,
+                        st_minus_1_T_pred_bt_minus1,
+                    ) = propagate_boxes_forward_using_flow(
+                        pred_boxes,
+                        point_cloud_ta,
+                        valid_mask_ta,
+                        pointwise_flow_ta_tb=-1.0 * pointwise_flow_ta_tb,
+                        odom_t0_t1=torch.linalg.inv(odom_ta_tb),
+                        device=cuda0,
+                    )
+
+                    if align_predicted_boxes_using_flow and not isinstance(
+                        box_predictor, (FlowClusterDetector,)
+                    ):
+                        pred_boxes = soft_align_box_flip_orientation_with_motion_trafo(
+                            boxes=pred_boxes,
+                            fg_kabsch_trafos=fg_kabsch_trafos_t0_t1,
+                            bg_kabsch_trafo=bg_kabsch_trafo_t0_t1,
+                        )
+
+                    pred_boxes = pred_boxes[0].cpu()
+
+                    odom_t0_t1 = odom_t0_t1.detach().cpu()
+
+                    pcl_no_ground_sensor_cosy = pcl_no_ground.detach()
+                    point_clouds_sensor_cosy.append(pcl_no_ground_sensor_cosy.cpu())
+                    point_cloud_row_idxs.append(
+                        sample_data_t0["lidar_rows_ta"][0].detach().cpu()
+                    )
+                    odoms_t0_t1.append(odom_t0_t1.detach().cpu())
+                    assert len(pred_boxes.pos.shape) == 2
+                    assert len(pred_boxes.rot.shape) == 2
+                    assert odom_t0_t1.shape == (4, 4), odom_t0_t1.shape
+                    assert odom_t0_t1.dtype == torch.float64, odom_t0_t1.dtype
+
+                    if export_raw_tracked_detections_to:
+                        per_box_extra_attributes = []
+                        box_is_in_annotated_fov = box_is_in_annotated_fov.cpu().numpy()
+                        for box_idx in range(pred_boxes.shape[0]):
+                            per_box_extra_attributes.append(
+                                {
+                                    "is_in_annotated_fov": box_is_in_annotated_fov[box_idx],
+                                    "sample_id": sample_id,
+                                }
+                            )
+                    else:
+                        per_box_extra_attributes = [
+                            None,
+                        ] * pred_boxes.shape[0]
+
+                    simple_tracker.update(
+                        pred_boxes,
+                        predicted_box_poses_stiii=st1_T_pred_bt1[0].cpu(),
+                        predicted_box_poses_sti=st_minus_1_T_pred_bt_minus1[0].cpu(),
+                        odom_stii_stiii=odom_t0_t1,
+                        per_box_extra_attributes_tii=per_box_extra_attributes,
+                    )
+                    gt_boxes = sample_data_t0.get("gt", {}).get("boxes", None)
+                    if gt_boxes is not None:
+                        gt_boxes_db[sample_id] = {
+                            "raw_box": gt_boxes[0].detach().cpu().numpy().__dict__
+                        }
+                    if trigger_gif_logging:
+                        pcl_box_gif_summary.update_pcl_npy_imgs(
+                            pcl_no_ground_sensor_cosy, sample_id
+                        )
+                    if trigger_img_logging:
+                        if gt_boxes:
+                            gt_boxes = gt_boxes.to(cuda0)
+                        else:
+                            gt_boxes = Shape.createEmpty().to_tensor().to(cuda0)
+                        (
+                            _,
+                            _,
+                            _,
+                            _,
+                            st1_T_gt_pred_bt1,
+                        ) = propagate_boxes_forward_using_flow(
+                            gt_boxes,
+                            point_cloud_ta,
+                            valid_mask_ta,
+                            gt_flow_ta_tb.to(cuda0),
+                            odom_t0_t1=gt_odom_ta_tb,
+                            device=cuda0,
+                        )
+                        (
+                            _,
+                            _,
+                            _,
+                            _,
+                            st_minus_1_T_gt_bt_minus1,
+                        ) = propagate_boxes_forward_using_flow(
+                            gt_boxes,
+                            point_cloud_ta,
+                            valid_mask_ta,
+                            pointwise_flow_ta_tb=-1.0 * gt_flow_ta_tb.to(cuda0),
+                            odom_t0_t1=torch.linalg.inv(gt_odom_ta_tb),
+                            device=cuda0,
+                        )
+                        gt_boxes = gt_boxes[0].detach().cpu()
+                        gt_tracker.update(
+                            gt_boxes,
+                            st1_T_gt_pred_bt1[0].detach().cpu(),
+                            st_minus_1_T_gt_bt_minus1[0].detach().cpu(),
+                            gt_odom_ta_tb.detach().cpu(),
+                            per_box_extra_attributes_tii=[
+                                None,
+                            ]
+                            * gt_boxes.shape[0],
+                        )
+
+                except:
+                    continue
+                
             if trigger_img_logging:
                 gt_tracker.run_tracker()
             # up to here
