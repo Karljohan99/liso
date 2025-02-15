@@ -51,33 +51,17 @@ class FlowClusterDetector(torch.nn.Module):
         self.max_box_len_m = max_box_len_m
         self.cfg = cfg
 
-        (
-            self.bev_range_m_np,
-            self.img_grid_size_np,
-            self.bev_pixel_per_meter_res_np,
-            self.pcl_bev_center_coords_homog_np,
-            torch_params,
-        ) = get_bev_setup_params(cfg)
+        self.bev_range_m_np, self.img_grid_size_np, self.bev_pixel_per_meter_res_np, self.pcl_bev_center_coords_homog_np, torch_params = get_bev_setup_params(cfg)
 
         for param_name, param in torch_params.items():
-            self.register_parameter(
-                param_name,
-                torch.nn.Parameter(
-                    param,
-                    requires_grad=False,
-                ),
-            )
+            self.register_parameter(param_name, torch.nn.Parameter(param, requires_grad=False))
+
         self.min_residual_flow_thresh_mps = 1.0  # 0.1m disp for 100ms
         # information should be propagated for maximum half a meter
-        self.grid_pts_3d = (
-            self.pcl_bev_center_coords_homog[..., 0:2].detach().cpu().numpy()
-        )
+        self.grid_pts_3d = (self.pcl_bev_center_coords_homog[..., 0:2].detach().cpu().numpy())
+
         self.pillar_bev_coors = np.stack(
-            np.meshgrid(
-                np.arange(self.grid_pts_3d.shape[0]),
-                np.arange(self.grid_pts_3d.shape[1]),
-                indexing="ij",
-            ),
+            np.meshgrid(np.arange(self.grid_pts_3d.shape[0]), np.arange(self.grid_pts_3d.shape[1]), indexing="ij"),
             axis=-1,
         )
         self.bev_img_grid_size = np.array(self.cfg.data.img_grid_size)
@@ -141,6 +125,8 @@ class FlowClusterDetector(torch.nn.Module):
                 dynamic_flow = flow_similarity_importance * bev_nonrigid_flow[batch_idx].detach().cpu().numpy()[valid_mask]
                 
                 cluster_coords = np.concatenate([dynamic_coors, dynamic_flow], axis=-1)
+
+                # Cluster coordinates
                 db = DBSCAN(eps=1.0, min_samples=5, metric="euclidean", algorithm="auto", n_jobs=1).fit(cluster_coords)
 
                 labels = db.labels_
@@ -150,9 +136,11 @@ class FlowClusterDetector(torch.nn.Module):
                 bev_labels[pillar_coors[..., 0], pillar_coors[..., 1]] = labels
                 slic_img_segments.append(bev_labels)
 
+                # Measure the properties of found clusters
                 clustered_regions = regionprops(bev_labels)
                 box_center_pix = np.clip(np.array([el.centroid for el in clustered_regions]).astype(np.int), a_min=0, a_max=min(self.grid_pts_3d.shape[:-1]) - 1)
 
+                # Predicted bounding box properties
                 rot = torch.from_numpy(np.array([el.orientation for el in clustered_regions])[..., None])
                 box_len = np.array([el.axis_major_length for el in clustered_regions])[..., None]
                 box_width = np.array([el.axis_minor_length for el in clustered_regions])[..., None]
@@ -164,18 +152,14 @@ class FlowClusterDetector(torch.nn.Module):
                     box_center_m = torch.zeros_like(box_dims)
 
                 probs = torch.ones_like(rot)
-                pred_boxes = Shape(pos=box_center_m, dims=box_dims, rot=rot,probs=probs,).to(box_target_device)
+                pred_boxes = Shape(pos=box_center_m, dims=box_dims, rot=rot, probs=probs,).to(box_target_device)
 
                 assert pred_boxes.dims.shape[-1] == 2, "otherwise box fitting will use bad box size from clustering!"
-                (
-                    num_pts_in_box,
-                    fitted_box_z,
-                    fitted_box_height,
-                ) = fit_bev_box_z_and_height_using_points_in_box(
-                    pcl_full_w_ground_for_box_fitting[batch_idx][:, :3],
-                    pred_boxes,
-                    box_height=1000.0,
-                )
+                
+                # Adjust the height and z-coordinate values of boxes based on point cloud that has ground 
+                num_pts_in_box, fitted_box_z, fitted_box_height = fit_bev_box_z_and_height_using_points_in_box(pcl_full_w_ground_for_box_fitting[batch_idx][:, :3], 
+                                                                                                               pred_boxes, box_height=1000.0)
+                
                 box_has_enough_points = num_pts_in_box >= self.min_num_pts_per_box
                 aspect_ratio = pred_boxes.dims[..., 0] / torch.max(
                     pred_boxes.dims[..., 1],
@@ -213,6 +197,8 @@ class FlowClusterDetector(torch.nn.Module):
                     Shape.createEmpty().to_tensor().to(box_target_device)
                 )
                 slic_img_segments.append(None)
+
+        # visulaization
         if (global_step % self.cfg.logging.img_log_interval) == 0:
             visu_superpixels = []
             for batch_idx in range(
@@ -296,40 +282,60 @@ class FlowClusterDetector(torch.nn.Module):
 
 @torch.no_grad()
 def fit_bev_box_z_and_height_using_points_in_box(pcl, boxes: Shape, box_height=1000.0):
+    """
+    pcl: A 2D tensor of shape (N, 3) representing the point cloud in sensor coordinates.
+    boxes: Shape: A bounding box object that contains:
+
+        boxes.pos: Center positions of the bounding boxes.
+        boxes.dims: Dimensions of the bounding boxes (width, length for 2D, or width, length, height for 3D).
+        boxes.get_poses(): Transformation matrices converting points from sensor space to box coordinate system.
+
+    box_height=1000.0: A default large height used if the box is 2D (BEV only).
+    """
     assert len(pcl.shape) == 2, pcl.shape
     assert len(boxes.pos.shape) == 2, boxes.print_attr_shapes()
+
+    # Gets the transformation matrices (one per box) from sensor space to box space.
     sensor_T_box = boxes.get_poses()
+
+    # Convert Points to Homogeneous Coordinates
     homog_pcl = torch.cat([pcl, torch.ones_like(pcl[:, :1])], dim=-1)
 
+    # Compute Box Dimensions
     if boxes.dims.shape[-1] == 2:
-        box_dims = torch.cat(
-            [boxes.dims, box_height * torch.ones_like(boxes.dims[:, :1])], dim=-1
-        )
+        # If boxes.dims only has 2 values (width, length), the function assumes a large height 
+        box_dims = torch.cat([boxes.dims, box_height * torch.ones_like(boxes.dims[:, :1])], dim=-1)
     else:
+        # If boxes.dims already has a third height dimension, it remains unchanged.
         assert boxes.dims.shape[-1] == 3, boxes.dims.shape
         box_dims = boxes.dims
-    pts_homog_in_box = torch.einsum(
-        "kij,nj->nki", torch.linalg.inv(sensor_T_box), homog_pcl.to(torch.double)
-    ).to(torch.float)
+
+    #  Transform Points into Box Coordinate System
+    pts_homog_in_box = torch.einsum("kij,nj->nki", torch.linalg.inv(sensor_T_box), homog_pcl.to(torch.double)).to(torch.float)
+
     assert torch.all(torch.isfinite(pts_homog_in_box))
-    pt_is_in_box = torch.all(
-        torch.abs(pts_homog_in_box[..., 0:3]) < 0.5 * box_dims[None, ...], dim=-1
-    )
+    
+    # Check Which Points Are Inside the Box
+    pt_is_in_box = torch.all(torch.abs(pts_homog_in_box[..., 0:3]) < 0.5 * box_dims[None, ...], dim=-1)
+    
+    # Compute Minimum and Maximum Z-Coordinates of Points in Each Box
     z_coords = pts_homog_in_box[..., 2]
-    dummy_box_height = torch.tensor(box_height).to(
-        dtype=z_coords.dtype, device=z_coords.device
-    )
-    z_coords_max = (
-        torch.where(pt_is_in_box, z_coords, -dummy_box_height).max(dim=0).values
-    )
+    dummy_box_height = torch.tensor(box_height).to(dtype=z_coords.dtype, device=z_coords.device)
+    
+    # Compute Fitted Box Height
+    z_coords_max = (torch.where(pt_is_in_box, z_coords, -dummy_box_height).max(dim=0).values)
     z_coords_min = torch.where(pt_is_in_box, z_coords, +dummy_box_height).min(dim=0)
     z_coords_min_vals = z_coords_min.values
+    
     fitted_box_height = z_coords_max - z_coords_min_vals
-    fitted_box_height = torch.clip(fitted_box_height, min=1.0, max=2.0)
+    fitted_box_height = torch.clip(fitted_box_height, min=1.0, max=2.0) # The height is clamped between 1.0 and 2.0 meters
     z_coords_min_idxs = z_coords_min.indices
+    
+    # Compute the Fitted Box Z-Position
     # take the lowest point in box (sensor coordinates) and add half box_height
     fitted_box_z = homog_pcl[..., 2][z_coords_min_idxs] + 0.5 * fitted_box_height
     num_pts_in_box = torch.sum(pt_is_in_box, dim=0)
+    
     assert torch.all(torch.isfinite(fitted_box_z))
     # fitted_box_z = torch.where(
     #     num_pts_in_box > 0, fitted_box_z, torch.tensor(np.nan).to(fitted_box_z.device)

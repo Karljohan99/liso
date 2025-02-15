@@ -28,9 +28,9 @@ KITTI_OBJ_MOVABLE_CLASS_FREQS = {
     # "Tram": 224,
     # "Truck": 488,
     # "Van": 1297,
-    "Car": 14357,
-    "Cyclist": 734,
-    "Pedestrian": 2207
+    #"Car": 14357,
+    #"Cyclist": 734,
+    #"Pedestrian": 2207
 }
 
 

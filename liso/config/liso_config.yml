@@ -115,7 +115,7 @@ default:
           local: "/mnt/Bolt/liso/tartu_mined_dbs"
         slim_flow:
           slim_bev_120m:
-            local: "/mnt/Bolt/liso/slim_infere_logs/c52d4/20250206_154708/preds"
+            local: "/mnt/Bolt/liso/slim_infere_logs/f87cc/20250211_095524/preds"
     source: "toy"
     flow_source: "gt"
     odom_source: "gt"
@@ -143,7 +143,7 @@ default:
     obj_dim_scale_buffer: 0.25
   optimization:
     use_lr_decay: True
-    num_training_steps: 35000
+    num_training_steps: 350000
     learning_rate: 0.001
     abs_num_warmup_steps: 2000
     rounds:
@@ -151,7 +151,7 @@ default:
       raw_or_tracked: "tracked"
       confidence_threshold_mined_boxes: 0.2
       confidence_threshold_for_augmentation_strictness_factor: 1.5
-      steps_per_round: 3000
+      steps_per_round: 30000
       drop_net_weights_every_nth_round: 2
   loss:
     pointrcnn_loss:
