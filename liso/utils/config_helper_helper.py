@@ -168,9 +168,10 @@ def load_handle_args_cfg_logdir(
         log_dir.mkdir(parents=True, exist_ok=True)
         print(f"Logging to {log_dir}")
     if save_cfg:
-        save_config(cfg, log_dir.joinpath("config.yml"))
-        print(f"Config saved to {log_dir.joinpath("config.yml")}")
-        with open(log_dir.joinpath("config.yml"), "r") as file:
+        config_path = log_dir.joinpath("config.yml")
+        save_config(cfg, config_path)
+        print(f"Config saved to {config_path}")
+        with open(config_path, "r") as file:
             print(file.read())
 
     set_seed(cfg.seed)
