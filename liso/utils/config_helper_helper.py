@@ -169,6 +169,9 @@ def load_handle_args_cfg_logdir(
         print(f"Logging to {log_dir}")
     if save_cfg:
         save_config(cfg, log_dir.joinpath("config.yml"))
+        print(f"Config saved to {log_dir.joinpath("config.yml")}")
+        with open(log_dir.joinpath("config.yml"), "r") as file:
+            print(file.read())
 
     set_seed(cfg.seed)
     torch.autograd.set_detect_anomaly(cfg.set_detect_anomaly)

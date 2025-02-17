@@ -21,6 +21,8 @@
 # Indicates that you need one GPU node
 #SBATCH --gres=gpu:tesla:1
 
+#SBATCH --mem-per-cpu=4G
+
 # If you keep the next two lines, you will get an e-mail notification
 # whenever something happens to your job (it starts running, completes or fails)
 #SBATCH --mail-type=ALL

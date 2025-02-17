@@ -17,7 +17,7 @@ default:
   data:
     train_on_box_source: "mined"
     downsample_dataset_keep_ratio: 1.0
-    force_redo_box_mining: True
+    force_redo_box_mining: False
     tracking_cfg:
       max_augm_db_size_mb: 251
       align_predicted_boxes_using_flow: False
