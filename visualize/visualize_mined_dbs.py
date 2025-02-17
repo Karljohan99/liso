@@ -126,7 +126,7 @@ def create_3d_bbox(center, dims, rot, color):
     return line_set
 
 
-def get_scene_elements(dataset, sequence, i, points_clusterer):
+def get_scene_elements(dataset, sequence, i, points_clusterer, tracking_data=None):
     if dataset == "kitti":
         # Load LiDAR point cloud
         point_cloud_path = f"pcd_files/kitti/{sequence}/0000000{i}.bin"
@@ -145,8 +145,11 @@ def get_scene_elements(dataset, sequence, i, points_clusterer):
 
         elif points_clusterer == "liso":
             # Load 3D bounding boxes
-            tracking_data = np.load("kitti_mined_dbs/tracked.npz", allow_pickle=True)
-            boxes = tracking_data["arr_0"].item()[f"2011_09_26_0013_0000000{i}"]["raw_box"]
+            if tracking_data is None:
+                tracking_data = np.load("kitti_mined_dbs/tracked.npz", allow_pickle=True)
+                boxes = tracking_data["arr_0"].item()[f"2011_09_26_0013_0000000{i}"]["raw_box"]
+            else:
+                boxes = tracking_data[f"{bag_name}{i}"]["raw_box"]
             out_boxes = get_3d_boxes_from_dict(boxes)
         else:
             raise ValueError
@@ -171,8 +174,11 @@ def get_scene_elements(dataset, sequence, i, points_clusterer):
 
         elif points_clusterer == "liso":
             # Load 3D bounding boxes
-            tracking_data = np.load("tartu_mined_dbs/tracked.npz", allow_pickle=True)
-            boxes = tracking_data["arr_0"].item()[f"{bag_name}{i}"]["raw_box"]
+            if tracking_data is None:
+                tracking_data = np.load("tartu_mined_dbs/tracked.npz", allow_pickle=True)
+                boxes = tracking_data["arr_0"].item()[f"{bag_name}{i}"]["raw_box"]
+            else:
+                boxes = tracking_data[f"{bag_name}{i}"]["raw_box"]
             out_boxes = get_3d_boxes_from_dict(boxes)
 
         elif points_clusterer == "aw_mini":

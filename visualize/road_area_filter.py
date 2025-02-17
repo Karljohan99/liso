@@ -3,8 +3,9 @@
 import json
 import numpy as np
 import shapely
-
 from pyproj import Transformer
+
+import matplotlib.pyplot as plt
 
 class RoadAreaFilter:
     def __init__(self, road_area_file, map_extraction_distance=150):
@@ -52,7 +53,7 @@ class RoadAreaFilter:
         x -= self.origin_easting
         y -= self.origin_northing
 
-        map_base_link_T = self.create_bl_to_map_matrix(x, y, latitude, longitude, 0, azimuth, roll, pitch)
+        base_link_to_map_T = self.create_bl_to_map_matrix(x, y, latitude, longitude, 0, azimuth, roll, pitch)
 
         map_extent_box = shapely.box(x - self.map_extraction_distance, 
                                      y - self.map_extraction_distance, 
@@ -63,19 +64,23 @@ class RoadAreaFilter:
         shapely.prepare(road_area)
 
         filtered_objects = []
+        points_list = []
         for obj in detected_objects:
-            map_coords = map_base_link_T @ np.array([obj.position.x, obj.position.y, 0, 1])
+            map_coords = base_link_to_map_T @ np.array([obj.position.x, obj.position.y, 0, 1])
             obj_geom = shapely.Point(map_coords[0], map_coords[1])
+            points_list.append(obj_geom)
 
             if road_area.intersects(obj_geom):
                 filtered_objects.append(obj)
+
+        visualize(road_area, points_list, (x, y))
 
         return filtered_objects
     
 
     def create_bl_to_map_matrix(self, x, y, longitude, latitude, height, azimuth, roll, pitch):
-        corrected_azimuth = self.correct_azimuth(latitude, longitude, azimuth)
-        rotation_matrix = self.rpy_to_rotation_matrix(roll, pitch, corrected_azimuth)
+        #corrected_azimuth = self.correct_azimuth(latitude, longitude, azimuth)
+        rotation_matrix = self.rpy_to_rotation_matrix(roll, pitch, azimuth)
         translation_matrix = np.array([x, y, height]).reshape(3, 1)
 
         map_T_bl = np.vstack((np.hstack((rotation_matrix, translation_matrix)), [0, 0, 0, 1]))
@@ -149,4 +154,26 @@ class RoadAreaFilter:
         # Combined rotation matrix: R = Rz * Ry * Rx
         R = Rz @ Ry @ Rx
         return R
+    
 
+def visualize(multi_poly, points, location):
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    x, y = multi_poly.geoms[0].exterior.xy  # Get exterior coordinates
+    ax.plot(x, y, color="blue", linewidth=2)  # Plot polygon edges
+
+    # Plot points
+    x_coords = [point.x for point in points]
+    y_coords = [point.y for point in points]
+    ax.scatter(x_coords, y_coords, color="red", marker="o", label="Boxes")
+    ax.scatter([location[0]], [location[1]], color="green", marker="o", label="Location")
+
+    # Set axis limits
+    ax.set_xlabel("X-axis")
+    ax.set_ylabel("Y-axis")
+    ax.legend()
+    ax.set_aspect("equal")
+
+    # Show plot
+    plt.show()

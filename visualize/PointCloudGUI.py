@@ -38,6 +38,8 @@ class PointCloudApp:
         self.sequence = "tartu1"
         self.index = "210"
 
+        self.tartu_tracking_data = np.load("tartu_mined_dbs/tracked.npz", allow_pickle=True)["arr_0"].item()
+
         # Setup the camera
         self.scene.setup_camera(60, o3d.geometry.AxisAlignedBoundingBox(np.array([-100.0]*3), np.array([100.0]*3)), np.zeros((3, 1)))
 
@@ -146,7 +148,10 @@ class PointCloudApp:
 
         try:
             if self.mode == "mined_dbs":
-                pcd, boxes = get_mined_dbs_elements(self.dataset, self.sequence, self.index, self.points_clusterer)
+                if self.dataset == "tartu":
+                    pcd, boxes = get_mined_dbs_elements(self.dataset, self.sequence, self.index, self.points_clusterer, tracking_data=self.tartu_tracking_data)
+                else:
+                    pcd, boxes = get_mined_dbs_elements(self.dataset, self.sequence, self.index, self.points_clusterer)
                 
                 # Remove and re-add the geometry to apply changes
                 self.scene.scene.remove_geometry("pointcloud")
