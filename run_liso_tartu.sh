@@ -13,15 +13,13 @@
 
 # The maximum walltime of the job is 5 minutes
 #SBATCH -t 8-00:00:00
-#SBATCH --mem=32G
+#SBATCH --mem=48G
 
 # Keep this line if you need a GPU for your job
 #SBATCH --partition=gpu
 
 # Indicates that you need one GPU node
 #SBATCH --gres=gpu:tesla:1
-
-#SBATCH --mem-per-cpu=4G
 
 # If you keep the next two lines, you will get an e-mail notification
 # whenever something happens to your job (it starts running, completes or fails)
