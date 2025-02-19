@@ -4,6 +4,7 @@ import json
 import numpy as np
 import shapely
 from pyproj import Transformer
+from detection_helpers import Vector3
 
 import matplotlib.pyplot as plt
 
@@ -11,6 +12,7 @@ class RoadAreaFilter:
     def __init__(self, road_area_file, map_extraction_distance=150):
         
         self.map_extraction_distance = map_extraction_distance
+        self.filtering_method = "within" #centroid, intersects
 
         origin_lat = 58.385345
         origin_lon = 26.726272
@@ -63,19 +65,44 @@ class RoadAreaFilter:
         road_area = map_extent_box.intersection(self.road_area_data)
         shapely.prepare(road_area)
 
+        if self.filtering_method == "within":
+            not_road_area = map_extent_box.difference(road_area)
+            shapely.prepare(not_road_area)
+
         filtered_objects = []
         points_list = []
         for obj in detected_objects:
             map_coords = base_link_to_map_T @ np.array([obj.position.x, obj.position.y, 0, 1])
-            obj_geom = shapely.Point(map_coords[0], map_coords[1])
-            points_list.append(obj_geom)
+            
+            obj.map_position = Vector3(map_coords[0], map_coords[1], 0)
+            v_new = base_link_to_map_T[:3, :3] @ np.array([np.cos(obj.heading), np.sin(obj.heading), 0])
+            obj.map_heading = np.arctan2(v_new[1], v_new[0])
 
-            if road_area.intersects(obj_geom):
-                filtered_objects.append(obj)
+            map_convex_hull_points = []
+            for p in obj.convex_hull_points:
+                map_p = base_link_to_map_T @ np.array([p.x, p.y, p.z, 1])
+                map_convex_hull_points.append(Vector3(map_p[0], map_p[1], 0))
 
-        visualize(road_area, points_list, (x, y))
+            obj.convex_hull_map_points = map_convex_hull_points
 
-        return filtered_objects
+
+            if self.filtering_method == "centroid":
+                obj_geom = shapely.Point(map_coords[0], map_coords[1])
+                points_list.append(obj_geom)
+            else:
+                obj_geom = shapely.polygons([(p.x, p.y) for p in obj.convex_hull_map_points])
+
+
+            if self.filtering_method == "centroid" or self.filtering_method == "intersects":
+                if road_area.intersects(obj_geom):
+                    filtered_objects.append(obj)
+            elif self.filtering_method == "within":
+                if not not_road_area.intersects(obj_geom):
+                    filtered_objects.append(obj)
+
+        #visualize(road_area, points_list, (x, y))
+
+        return filtered_objects, base_link_to_map_T
     
 
     def create_bl_to_map_matrix(self, x, y, longitude, latitude, height, azimuth, roll, pitch):

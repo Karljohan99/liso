@@ -15,6 +15,10 @@ class DetectedObject:
     position: Vector3
     dimensions: Vector3
     heading: float
+    map_dimensions: Vector3 = None
+    map_heading: float = None
+    convex_hull_points = []
+    convex_hull_map_points = []
     velocity: Vector3 = field(default_factory = Vector3)
     acceleration: Vector3 = field(default_factory = Vector3)
     valid: bool = False
@@ -61,13 +65,8 @@ def update_object_position_dimensions(obj):
     """
 
     # Collect points from convex_hull and extract rotation center
-    x_center, y_center = obj.position.x, obj.position.y
-    half_length, half_width = obj.position.x, obj.position.y
-    points = np.array([[x_center - half_length, y_center - half_width],
-                       [x_center + half_length, y_center - half_width],
-                       [x_center - half_length, y_center + half_width],
-                       [x_center + half_length, y_center + half_width]])
-    centroid = np.array([obj.position.x, obj.position.y])
+    points = np.array([(p.x, p.y) for p in obj.convex_hull_map_points])
+    centroid = np.array([obj.map_position.x, obj.map_position.y])
     heading_angle = get_heading_from_vector(obj.velocity)
 
     # Create rotation matrix
@@ -104,11 +103,11 @@ def update_object_position_dimensions(obj):
     target_point = target_point @ inverse_rotation_matrix.T
     target_point += centroid
 
-    obj.position.x = target_point[0]
-    obj.position.y = target_point[1]
+    obj.map_position.x = target_point[0]
+    obj.map_position.y = target_point[1]
     obj.dimensions.x = length
     obj.dimensions.y = width
-    obj.heading = heading_angle
+    obj.map_heading = heading_angle
 
 def get_heading_from_vector(vector):
     """

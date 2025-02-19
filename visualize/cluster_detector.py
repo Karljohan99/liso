@@ -34,7 +34,7 @@ class ClusterDetector:
             # fetch points for this cluster
             points3d = points[mask,:3]
             # cv2.convexHull needs contiguous array of 2D points
-            points2d = np.ascontiguousarray(points3d[:,:2])
+            points2d = np.ascontiguousarray(points3d[:,:2], dtype=np.float32)
 
             if self.bounding_box_type == 'axis_aligned':
                 # calculate centroid and dimensions
@@ -62,6 +62,9 @@ class ClusterDetector:
 
             cluster = DetectedObject(i, Vector3(center_x, center_y, center_z), Vector3(dim_x, dim_y, dim_z), heading)
             cluster.valid = True
+
+            hull_points = cv2.convexHull(points2d)[:,0,:]
+            cluster.convex_hull_points = [Vector3(x, y, center_z) for x, y in hull_points]
 
             clusters.append(cluster)
 
