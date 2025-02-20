@@ -38,7 +38,7 @@ class PointCloudApp:
         self.sequence = "tartu1"
         self.index = "210"
 
-        self.tartu_tracking_data = np.load("tartu_mined_dbs/tracked.npz", allow_pickle=True)["arr_0"].item()
+        self.tartu_tracking_data = np.load("tartu_mined_dbs/60000/tracked.npz", allow_pickle=True)["arr_0"].item()
 
         # Setup the camera
         self.scene.setup_camera(60, o3d.geometry.AxisAlignedBoundingBox(np.array([-100.0]*3), np.array([100.0]*3)), np.zeros((3, 1)))
@@ -58,6 +58,11 @@ class PointCloudApp:
         self.index_textbox.placeholder_text = "Seq Idx"
         self.index_textbox.set_on_value_changed(self.on_index_changed)
         self.index_textbox.text_value = "210"
+
+        self.step_textbox = gui.TextEdit()
+        self.step_textbox.placeholder_text = "Steps"
+        self.step_textbox.set_on_value_changed(self.on_steps_changed)
+        self.step_textbox.text_value = "60000"
 
         self.ok_button = gui.Button("OK")
         self.ok_button.set_on_clicked(self.visualize_point_cloud)
@@ -79,6 +84,7 @@ class PointCloudApp:
         self.window.add_child(self.dataset_textbox)
         self.window.add_child(self.sequence_textbox)
         self.window.add_child(self.index_textbox)
+        self.window.add_child(self.step_textbox)
         self.window.add_child(self.ok_button)
         self.window.add_child(self.back_button)
         self.window.add_child(self.forward_button)
@@ -107,6 +113,9 @@ class PointCloudApp:
     def on_index_changed(self, new_text):
         self.index = new_text.strip().zfill(3)
 
+    def on_steps_changed(self, steps):
+        self.tartu_tracking_data = np.load(f"tartu_mined_dbs/{steps}/tracked.npz", allow_pickle=True)["arr_0"].item()
+
     def go_backward(self):
         new_index = str(int(self.index) - 1)
         self.index_textbox.text_value = new_index
@@ -130,11 +139,11 @@ class PointCloudApp:
 
     def use_clusterer(self):
         if self.points_clusterer == "liso":
-            self.points_clusterer = "simple"
+            self.points_clusterer = "sfa"
             self.use_clusterer_button.background_color = gui.Color(0.2, 0.75, 0.2)
-            self.use_clusterer_button.text = "Simple clusterer"
+            self.use_clusterer_button.text = "SFA detector"
 
-        elif self.points_clusterer == "simple":
+        elif self.points_clusterer == "sfa":
             self.points_clusterer = "aw_mini"
             self.use_clusterer_button.background_color = gui.Color(0.5, 0.5, 1.0)
             self.use_clusterer_button.text = "AW Mini clusterer"
@@ -212,8 +221,12 @@ class PointCloudApp:
         self.forward_button.frame = gui.Rect(self.window.content_rect.x + 470, 
                                             self.window.content_rect.get_bottom() - 50, 
                                             50, 30)
+        
+        self.step_textbox.frame = gui.Rect(self.window.content_rect.x + 530, 
+                                            self.window.content_rect.get_bottom() - 50, 
+                                            100, 30)
                                             
-        self.ok_button.frame = gui.Rect(self.window.content_rect.x + 550, 
+        self.ok_button.frame = gui.Rect(self.window.content_rect.x + 650, 
                                            self.window.content_rect.get_bottom() - 50, 
                                            50, 30)
         

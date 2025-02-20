@@ -54,7 +54,7 @@ def get_3d_boxes_from_detected_object(boxes):
 
     return out_boxes
 
-def get_3d_boxes_from_list(boxes):
+def get_3d_boxes_from_list(boxes, splitter=" "):
     """
     Convert 3D bounding boxes from list to Open3D format.
 
@@ -67,7 +67,7 @@ def get_3d_boxes_from_list(boxes):
     out_boxes = []
 
     for box in boxes:
-        line = box.strip().split(" ")
+        line = box.strip().split(splitter)
         center = [float(line[0]), float(line[1]), float(line[2])]
         dims = [float(line[3]), float(line[4]), float(line[5])]
         rot = float(line[6])
@@ -137,7 +137,7 @@ def get_scene_elements(dataset, sequence, i, points_clusterer, tracking_data=Non
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(point_cloud[:, :3])
 
-        if points_clusterer == "simple":
+        if points_clusterer == "sfa":
             # Use clusterer to detect 3D bounding boxes
             points_clusterer = PointsClusterer("axis_aligned", 0.7, 4, False)
             boxes = points_clusterer.cluster(point_cloud[:, :3])
@@ -166,11 +166,14 @@ def get_scene_elements(dataset, sequence, i, points_clusterer, tracking_data=Non
         point_cloud_path = f"pcd_files/tartu/{sequence}/0{pcd_i}{i}.pcd"
         pcd = o3d.io.read_point_cloud(point_cloud_path)
 
-        if points_clusterer == "simple":
+        if points_clusterer == "sfa":
             # Use clusterer to detect 3D bounding boxes
-            points_clusterer = PointsClusterer("axis_aligned", 0.7, 4, False)
-            boxes = points_clusterer.cluster(np.asarray(pcd.points))
-            out_boxes = get_3d_boxes_from_detected_object(boxes)
+            #points_clusterer = PointsClusterer("axis_aligned", 0.7, 4, False)
+            #boxes = points_clusterer.cluster(np.asarray(pcd.points))
+            #out_boxes = get_3d_boxes_from_detected_object(boxes)
+            filepath = f"sfa_detections/{dataset}/{sequence}/0{pcd_i}{i}.txt"
+            with open(filepath) as f:
+                out_boxes = get_3d_boxes_from_list(f.readlines(), splitter=",")
 
         elif points_clusterer == "liso":
             # Load 3D bounding boxes
