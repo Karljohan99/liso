@@ -15,10 +15,10 @@ class CenterPointStyleNet(torch.nn.Module):
     def __init__(self, cfg) -> None:
         super().__init__()
         self.cfg = cfg
-        channel_reduction_factor = cfg.network.centerpoint.setdefault(
-            "channel_reduction_factor", 1
-        )
+        channel_reduction_factor = cfg.network.centerpoint.setdefault("channel_reduction_factor", 1)
+
         assert is_power_of_two(channel_reduction_factor), channel_reduction_factor
+
         rpn_conf = {
             "layer_nums": [3, 5],
             "ds_layer_strides": [2, 2],
@@ -32,6 +32,7 @@ class CenterPointStyleNet(torch.nn.Module):
                 128 // channel_reduction_factor,
             ],
         }
+        
         if cfg.network.centerpoint.reduce_receptive_field == 2:
             rpn_conf["ds_layer_strides"] = [1, 1]  # wont work
         elif cfg.network.centerpoint.reduce_receptive_field == 1:

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 def modify_pred_pos(
@@ -91,7 +92,7 @@ def box_pred_convention_to_gt_convention(
                 box_vars_pred["rot"], p=2.0, dim=-1
             )
             sin_yaw, cos_yaw = torch.split(vec_normed, 1, dim=-1)
-            theta = torch.atan2(sin_yaw, cos_yaw)
+            theta = onnx_atan2(sin_yaw, cos_yaw)
         else:
             rot_vec = box_vars_pred["rot"]
             # centermaps:
@@ -99,7 +100,7 @@ def box_pred_convention_to_gt_convention(
             # rot[1] == cos(theta) "== x"
             # theta = atan(y,x)
             sin_yaw, cos_yaw = torch.split(rot_vec, 1, dim=-1)
-            theta = torch.atan2(sin_yaw, cos_yaw)
+            theta = onnx_atan2(sin_yaw, cos_yaw)
         box_vars_pred["rot"] = theta
     elif box_pred_cfg.rotation_representation.method == "direct":
         pass
@@ -144,5 +145,30 @@ def output_modification(
         )
     else:
         raise NotImplementedError(shape_name)
+    
+def onnx_atan2(y, x):
+    # Taken from https://gist.github.com/nikola-j/b5bb6b141b8d9920318677e1bba70466?permalink_comment_id=4550495#gistcomment-4550495
+
+    # Create a pi tensor with the same device and data type as y
+    pi = torch.tensor(np.pi, device=y.device, dtype=y.dtype)
+    half_pi = pi / 2
+    eps = 1e-6
+
+    # Compute the arctangent of y/x
+    ans = torch.atan(y / (x + eps))
+
+    # Create boolean tensors representing positive, negative, and zero values of y and x
+    y_positive = y > 0
+    y_negative = y < 0
+    x_negative = x < 0
+    x_zero = x == 0
+
+    # Adjust ans based on the positive, negative, and zero values of y and x
+    ans += torch.where(y_positive & x_negative, pi, torch.zeros_like(ans))  # Quadrants I and II
+    ans -= torch.where(y_negative & x_negative, pi, torch.zeros_like(ans))  # Quadrants III and IV
+    ans = torch.where(y_positive & x_zero, half_pi, ans)  # Positive y-axis
+    ans = torch.where(y_negative & x_zero, -half_pi, ans)  # Negative y-axis
+
+    return ans
 
     return box_vars_pred

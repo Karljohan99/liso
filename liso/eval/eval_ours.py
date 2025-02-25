@@ -373,6 +373,7 @@ def run_val(
                         overlap_threshold=cfg.nms_iou_threshold,
                         post_nms_max_boxes=500,
                     )
+
                     non_batched_pred_boxes = non_batched_pred_boxes[nms_pred_box_idxs]
                     if isinstance(val_loader.dataset, (KittiTrackingDataset, KittiObjectDataset)):
                         # filter detections that fell into areas that have no labels
