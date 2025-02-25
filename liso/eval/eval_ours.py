@@ -147,16 +147,17 @@ def run_val(
         if not hasattr(cfg.validation, "obj_is_moving_velocity_thresh")
         else cfg.validation.obj_is_moving_velocity_thresh
     )
+
     num_img_log_samples = 10
     num_extra_tbs = 0
+
     if max_num_steps is None:
         max_num_steps = len(val_loader) + 1
     if img_log_interval is None:
         img_log_interval = max(max_num_steps // num_img_log_samples, 1)
+
     eval_start_time = datetime.now()
-    print(
-        f"{eval_start_time} start eval {writer_prefix} at step {global_step} for {max_num_steps} steps on {val_loader.dataset.__class__.__name__}."
-    )
+    print(f"{eval_start_time} start eval {writer_prefix} at step {global_step} for {max_num_steps} steps on {val_loader.dataset.__class__.__name__}.")
 
     time_last_logged = time.time()
     range_bins = [(0.0, 1000.0), (0.0, 20.0), (20.0, 40.0), (40.0, 60.0)]
@@ -295,15 +296,14 @@ def run_val(
                     cfg.data.flow_source in sample_data_t0
                     and "flow_ta_tb" in sample_data_t0[cfg.data.flow_source]
                 ):
-                    pred_flow = (
-                        sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy()
-                    )
+                    pred_flow = (sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy())
                 else:
                     pred_flow = None
 
         else:
             with torch.no_grad():
                 if isinstance(box_predictor, (FlowClusterDetector,)):
+                    print("SAMPLE_DATA", sample_data_t0)
                     pred_boxes = box_predictor(
                         sample_data_t0,
                         writer=writer,
@@ -327,9 +327,7 @@ def run_val(
                     cfg.data.flow_source in sample_data_t0
                     and "flow_ta_tb" in sample_data_t0[cfg.data.flow_source]
                 ):
-                    pred_flow = (
-                        sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy()
-                    )
+                    pred_flow = (sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy())
                 else:
                     pred_flow = None
 
@@ -765,29 +763,18 @@ def main():
     if args.load_checkpoint:
         args.load_checkpoint = Path(args.load_checkpoint)
         cfg_path_chkpt = args.load_checkpoint.parent.parent.joinpath("config.yml")
-        exp_desc = Path(args.load_checkpoint.as_posix().split("/")[-5]).joinpath(
-            args.load_checkpoint.stem
-        )
+        exp_desc = Path(args.load_checkpoint.as_posix().split("/")[-5]).joinpath(args.load_checkpoint.stem)
         cfg = dumb_load_yaml_to_omegaconf(cfg_path_chkpt)
 
         box_predictor = select_network(cfg, device=torch.device("cuda:0"))
 
-        box_predictor = load_checkpoint_check_sanity(
-            args.load_checkpoint, cfg, box_predictor
-        )
+        box_predictor = load_checkpoint_check_sanity(args.load_checkpoint, cfg, box_predictor)
         default_cfg = parse_config(args.config_file)
         cfg.data.paths = default_cfg.data.paths
     else:
-        cfg = parse_config(
-            args.config_file,
-            extra_cfg_args=args.configs,
-            key_value_updates=args.keys_value,
-        )
+        cfg = parse_config(args.config_file, extra_cfg_args=args.configs, key_value_updates=args.keys_value)
 
-        assert cfg.network.name in (
-            "flow_cluster_detector",
-            "echo_gt",
-        ), cfg.network.name
+        assert cfg.network.name in ("flow_cluster_detector", "echo_gt"), cfg.network.name
         exp_desc = cfg.network.name
         if cfg.network.name == "flow_cluster_detector":
             exp_desc = Path(exp_desc) / (cfg.data.flow_source + "_flow")
@@ -804,34 +791,15 @@ def main():
     mask_gt_renderer = RecursiveDeviceMover(cfg).cuda()
 
     if cfg.data.source == "nuscenes":
-        val_loader = get_nuscenes_val_dataset(
-            cfg,
-            use_skip_frames="never",
-            size=None,
-            shuffle=True,
-        )
+        val_loader = get_nuscenes_val_dataset(cfg, use_skip_frames="never", size=None, shuffle=True)
     elif cfg.data.source == "kitti":
-        val_loader, _ = get_kitti_val_dataset(
-            cfg,
-            size=None,
-            target="object",
-            use_skip_frames="never",
-            shuffle=True,
-        )
+        val_loader, _ = get_kitti_val_dataset(cfg, size=None, target="object", use_skip_frames="never", shuffle=True)
     elif cfg.data.source == "waymo":
-        val_loader = get_waymo_val_dataset(
-            cfg,
-            size=None,
-            use_skip_frames="never",
-            shuffle=True,
-        )
+        val_loader = get_waymo_val_dataset(cfg, size=None, use_skip_frames="never", shuffle=True)
     elif cfg.data.source == "av2":
-        val_loader = get_av2_val_dataset(
-            cfg,
-            size=None,
-            use_skip_frames="never",
-            shuffle=True,
-        )
+        val_loader = get_av2_val_dataset(cfg, size=None, use_skip_frames="never", shuffle=True)
+    elif cfg.data.source == "tartu":
+        val_loader, _ = get_kitti_val_dataset(cfg, size=None, target="object", use_skip_frames="never", shuffle=True, tartu=True)
     else:
         raise NotImplementedError(cfg.data.source)
 
@@ -842,29 +810,16 @@ def main():
 
     writer.add_text("config", pretty_json(cfg), 0)
 
-    run_val(
-        cfg,
-        val_loader,
-        box_predictor,
-        mask_gt_renderer,
-        "online_val/",
-        writer=writer,
-        global_step=0,
-        max_num_steps=100,
-    )
-    run_val(
-        cfg,
-        val_loader,
-        box_predictor=box_predictor,
-        mask_gt_renderer=mask_gt_renderer,
-        writer_prefix="full_eval/",
-        writer=writer,
-        global_step=0,
-        max_num_steps=max_num_steps,
-        incremental_log_every_n_hours=4,
-        export_predictions_for_visu=args.export_predictions_for_visu,
-    )
+    run_val(cfg, val_loader, box_predictor, mask_gt_renderer, "online_val/",
+            writer=writer, global_step=0, max_num_steps=100)
+    
+    run_val(cfg, val_loader, box_predictor=box_predictor, mask_gt_renderer=mask_gt_renderer,
+            writer_prefix="full_eval/", writer=writer, global_step=0, max_num_steps=max_num_steps,
+            incremental_log_every_n_hours=4, export_predictions_for_visu=args.export_predictions_for_visu)
 
+    save_onnx = maybe_slow_log_dir.joinpath("checkpoints", "test.onnx")
+    print("ONNX save path", save_onnx)
+    torch.onnx.export(box_predictor, None, save_onnx)
 
 if __name__ == "__main__":
     main()

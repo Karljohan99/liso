@@ -576,6 +576,7 @@ def main():
 
 def save_experiment_state(checkpoint_dir: Path, box_predictor, optimizer, lr_scheduler, global_step: int):
     save_to = checkpoint_dir.joinpath(f"{global_step}.pth")
+    #save_onnx = checkpoint_dir.joinpath(f"{global_step}.onnx")
     torch.save(
         {
             "network": box_predictor.state_dict(),
