@@ -279,6 +279,8 @@ def run_val(
             ",".join(sample_name),
             global_step=global_step + val_step,
         )
+        print("SAMPLE_DATA", sample_data_t0)
+        print("BOX PREDICTOR", box_predictor)
         if isinstance(box_predictor, Dict):
             with torch.no_grad():
                 pred_boxes = []
@@ -303,7 +305,6 @@ def run_val(
         else:
             with torch.no_grad():
                 if isinstance(box_predictor, (FlowClusterDetector,)):
-                    print("SAMPLE_DATA", sample_data_t0)
                     pred_boxes = box_predictor(
                         sample_data_t0,
                         writer=writer,
@@ -813,9 +814,9 @@ def main():
     run_val(cfg, val_loader, box_predictor, mask_gt_renderer, "online_val/",
             writer=writer, global_step=0, max_num_steps=100)
     
-    run_val(cfg, val_loader, box_predictor=box_predictor, mask_gt_renderer=mask_gt_renderer,
-            writer_prefix="full_eval/", writer=writer, global_step=0, max_num_steps=max_num_steps,
-            incremental_log_every_n_hours=4, export_predictions_for_visu=args.export_predictions_for_visu)
+    #run_val(cfg, val_loader, box_predictor=box_predictor, mask_gt_renderer=mask_gt_renderer,
+    #        writer_prefix="full_eval/", writer=writer, global_step=0, max_num_steps=max_num_steps,
+    #        incremental_log_every_n_hours=4, export_predictions_for_visu=args.export_predictions_for_visu)
 
     save_onnx = maybe_slow_log_dir.joinpath("checkpoints", "test.onnx")
     print("ONNX save path", save_onnx)

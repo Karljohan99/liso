@@ -1310,7 +1310,7 @@ class ObjectDetectionMetrics(BaseODMetrics):
                         pretty_json(metrics_dict),
                         global_step,
                     )
-        print(f"{global_step}/{writer_prefix_with_crit}:", metrics_dict)
+        #print(f"{global_step}/{writer_prefix_with_crit}:", metrics_dict)
 
         plt.close("all")
         gc.collect()
