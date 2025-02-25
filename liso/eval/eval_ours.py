@@ -695,47 +695,50 @@ def run_val(
                         + f"interm_result/WAYMO/detection_metrics/{range_str}",
                     )
                 time_last_logged = time.time()
-    except:
-        pass
     
-    for metric_category in range_based_od_metrics:
-        for range_bin_str in range_based_od_metrics[metric_category]:
-            for metr_coll in range_based_od_metrics[metric_category][
-                range_bin_str
-            ].values():
-                metr_coll.log(
-                    global_step + val_step,
-                    summary_writer=writer,
-                    writer_prefix=f"{writer_prefix}final_result/{metric_category}/detection_metrics/{range_bin_str}",
-                )
-    nusc_metrics.log(
-        global_step,
-        summary_writer=writer,
-        writer_prefix=writer_prefix + "final_result/NUSC_OFFICIAL/detection_metrics/",
-        render_curves_to=Path(writer.log_dir).parent.joinpath("final_nuscenes_pdfs"),
-    )
-    class_based_metrics.log(
-        global_step,
-        summary_writer=writer,
-        writer_prefix=writer_prefix
-        + f"final_result/{metric_description}/detection_metrics/",
-    )
-    for range_str, w_metric in waymo_metrics.items():
-        w_metric.log(
+    
+        for metric_category in range_based_od_metrics:
+            for range_bin_str in range_based_od_metrics[metric_category]:
+                for metr_coll in range_based_od_metrics[metric_category][
+                    range_bin_str
+                ].values():
+                    metr_coll.log(
+                        global_step + val_step,
+                        summary_writer=writer,
+                        writer_prefix=f"{writer_prefix}final_result/{metric_category}/detection_metrics/{range_bin_str}",
+                    )
+        nusc_metrics.log(
+            global_step,
+            summary_writer=writer,
+            writer_prefix=writer_prefix + "final_result/NUSC_OFFICIAL/detection_metrics/",
+            render_curves_to=Path(writer.log_dir).parent.joinpath("final_nuscenes_pdfs"),
+        )
+        class_based_metrics.log(
             global_step,
             summary_writer=writer,
             writer_prefix=writer_prefix
-            + f"final_result/WAYMO/detection_metrics/{range_str}",
+            + f"final_result/{metric_description}/detection_metrics/",
         )
-    flow_metrics.log_metrics_curves(
-        global_step,
-        summary_writer=writer,
-        writer_prefix=writer_prefix + "final_result/flow_metrics/",
-    )
-    eval_end_time = datetime.now()
-    print(
-        f"{eval_end_time} finished {val_step} eval step. Took {eval_end_time - eval_start_time}"
-    )
+        for range_str, w_metric in waymo_metrics.items():
+            w_metric.log(
+                global_step,
+                summary_writer=writer,
+                writer_prefix=writer_prefix
+                + f"final_result/WAYMO/detection_metrics/{range_str}",
+            )
+        flow_metrics.log_metrics_curves(
+            global_step,
+            summary_writer=writer,
+            writer_prefix=writer_prefix + "final_result/flow_metrics/",
+        )
+        eval_end_time = datetime.now()
+        print(
+            f"{eval_end_time} finished {val_step} eval step. Took {eval_end_time - eval_start_time}"
+        )
+
+    except:
+        pass
+    
     return sample_data_t0
 
 
