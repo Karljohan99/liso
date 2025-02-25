@@ -146,6 +146,8 @@ def output_modification(
     else:
         raise NotImplementedError(shape_name)
     
+    return box_vars_pred
+    
 def onnx_atan2(y, x):
     # Taken from https://gist.github.com/nikola-j/b5bb6b141b8d9920318677e1bba70466?permalink_comment_id=4550495#gistcomment-4550495
 
@@ -170,5 +172,3 @@ def onnx_atan2(y, x):
     ans = torch.where(y_negative & x_zero, -half_pi, ans)  # Negative y-axis
 
     return ans
-
-    return box_vars_pred
