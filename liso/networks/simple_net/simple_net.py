@@ -79,7 +79,7 @@ class BoxLearner(torch.nn.Module):
 
         shape = Shape(**flat_boxes)
 
-        return (shape.pos, shape.dim, shape.rot, shape.probs, decoded_box_maps, activated_box_maps, aux_outputs)
+        return (shape.pos, shape.dims, shape.rot, shape.probs, decoded_box_maps, activated_box_maps, aux_outputs)
 
     def apply_all_output_modifications(self, *, raw_box_vars: Dict[str, torch.FloatTensor], gt_boxes=None, centermaps_gt=None):
         shape_vars_activated = {
