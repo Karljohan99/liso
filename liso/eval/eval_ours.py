@@ -279,7 +279,7 @@ def run_val(
             ",".join(sample_name),
             global_step=global_step + val_step,
         )
-        print("SAMPLE_DATA", sample_data_t0)
+        #print("SAMPLE_DATA", sample_data_t0)
         #print("BOX PREDICTOR", box_predictor)
         if isinstance(box_predictor, Dict):
             with torch.no_grad():
@@ -816,7 +816,7 @@ def main():
     #        writer_prefix="full_eval/", writer=writer, global_step=0, max_num_steps=max_num_steps,
     #        incremental_log_every_n_hours=4, export_predictions_for_visu=args.export_predictions_for_visu)
 
-     
+    sample_data_t0.pop('gt', None)
     save_onnx = maybe_slow_log_dir.joinpath("checkpoints", "test.onnx")
     print("ONNX save path", save_onnx)
     torch.onnx.export(box_predictor, sample_data_t0, save_onnx)
