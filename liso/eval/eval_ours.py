@@ -280,15 +280,13 @@ def run_val(
             global_step=global_step + val_step,
         )
         print("SAMPLE_DATA", sample_data_t0)
-        print("BOX PREDICTOR", box_predictor)
+        #print("BOX PREDICTOR", box_predictor)
         if isinstance(box_predictor, Dict):
             with torch.no_grad():
                 pred_boxes = []
                 for sn in sample_name:
                     if sn in box_predictor:
-                        pred_boxes.append(
-                            Shape(**box_predictor[sn]["raw_box"]).to_tensor()
-                        )
+                        pred_boxes.append(Shape(**box_predictor[sn]["raw_box"]).to_tensor())
                     else:
                         pred_boxes.append(Shape.createEmpty().to_tensor())
                 pred_boxes = Shape.from_list_of_shapes(pred_boxes).to(device)
@@ -334,8 +332,7 @@ def run_val(
 
         pred_boxes = pred_boxes.to(device)
         assert pred_boxes.rot.shape[-1] == 1, pred_boxes.rot.shape
-        if (
-            cfg.data.flow_source != "gt" and cfg.data.flow_source in sample_data_t0
+        if (cfg.data.flow_source != "gt" and cfg.data.flow_source in sample_data_t0
         ) and "flow_ta_tb" in sample_data_t0["gt"]:
             points = sample_data_t0["pcl_ta"]["pcl"].cpu().numpy()
 
@@ -751,6 +748,7 @@ def run_val(
     print(
         f"{eval_end_time} finished {val_step} eval step. Took {eval_end_time - eval_start_time}"
     )
+    return sample_data_t0
 
 
 def main():
@@ -811,16 +809,17 @@ def main():
 
     writer.add_text("config", pretty_json(cfg), 0)
 
-    run_val(cfg, val_loader, box_predictor, mask_gt_renderer, "online_val/",
+    sample_data_t0 = run_val(cfg, val_loader, box_predictor, mask_gt_renderer, "online_val/",
             writer=writer, global_step=0, max_num_steps=100)
     
     #run_val(cfg, val_loader, box_predictor=box_predictor, mask_gt_renderer=mask_gt_renderer,
     #        writer_prefix="full_eval/", writer=writer, global_step=0, max_num_steps=max_num_steps,
     #        incremental_log_every_n_hours=4, export_predictions_for_visu=args.export_predictions_for_visu)
 
+     
     save_onnx = maybe_slow_log_dir.joinpath("checkpoints", "test.onnx")
     print("ONNX save path", save_onnx)
-    torch.onnx.export(box_predictor, None, save_onnx)
+    torch.onnx.export(box_predictor, sample_data_t0, save_onnx)
 
 if __name__ == "__main__":
     main()
