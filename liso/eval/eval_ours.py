@@ -257,459 +257,447 @@ def run_val(
         for (min_range, max_range) in range_bins
     }
     flow_metrics = FlowMetrics(range_bins=(0.0, 25.0, 50.0, 75.0, 100.0))
-    for val_step, train_data in enumerate(tqdm(val_loader, total=max_num_steps, disable=False)):
-        if max_num_steps is not None and val_step > max_num_steps:
-            break
-        trigger_img_logging = val_step % img_log_interval == 0
-        trigger_export_for_visu = trigger_img_logging
+    try:
+        for val_step, train_data in enumerate(tqdm(val_loader, total=max_num_steps, disable=False)):
+            if max_num_steps is not None and val_step > max_num_steps:
+                break
+            trigger_img_logging = val_step % img_log_interval == 0
+            trigger_export_for_visu = trigger_img_logging
 
-        sample_data_t0, sample_data_t1, _, meta_data = mask_gt_renderer(
-            train_data,
-            need_sample_data_t1=(trigger_img_logging),
-            need_augm_sample_data_t0=False,
-        )
+            sample_data_t0, sample_data_t1, _, meta_data = mask_gt_renderer(
+                train_data,
+                need_sample_data_t1=(trigger_img_logging),
+                need_augm_sample_data_t0=False,
+            )
 
-        centermaps_gt = None
+            centermaps_gt = None
 
-        gt_boxes = sample_data_t0["gt"]["boxes"].to(device)
-        benchmark_gt_boxes = sample_data_t0["gt"]["boxes_nusc"].to(device)
-        sample_name = meta_data["sample_id"]
-        writer.add_text(
-            writer_prefix.rstrip("/") + "/sample_name",
-            ",".join(sample_name),
-            global_step=global_step + val_step,
-        )
-        #print("SAMPLE_DATA", sample_data_t0)
-        #print("BOX PREDICTOR", box_predictor)
-        if isinstance(box_predictor, Dict):
-            with torch.no_grad():
-                pred_boxes = []
-                for sn in sample_name:
-                    if sn in box_predictor:
-                        pred_boxes.append(Shape(**box_predictor[sn]["raw_box"]).to_tensor())
-                    else:
-                        pred_boxes.append(Shape.createEmpty().to_tensor())
-                pred_boxes = Shape.from_list_of_shapes(pred_boxes).to(device)
-                pred_boxes.class_id = pred_boxes.class_id.to(gt_boxes.class_id.dtype)
-                pred_boxes_maps = None
-                if (
-                    cfg.data.flow_source in sample_data_t0
-                    and "flow_ta_tb" in sample_data_t0[cfg.data.flow_source]
-                ):
-                    pred_flow = (sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy())
-                else:
-                    pred_flow = None
-
-        else:
-            with torch.no_grad():
-                if isinstance(box_predictor, (FlowClusterDetector,)):
-                    pred_boxes = box_predictor(
-                        sample_data_t0,
-                        writer=writer,
-                        writer_prefix=writer_prefix + "/flow_cluster_detector/",
-                        global_step=val_step % img_log_interval,
-                        is_batched=True,
-                    )
+            gt_boxes = sample_data_t0["gt"]["boxes"].to(device)
+            benchmark_gt_boxes = sample_data_t0["gt"]["boxes_nusc"].to(device)
+            sample_name = meta_data["sample_id"]
+            writer.add_text(
+                writer_prefix.rstrip("/") + "/sample_name",
+                ",".join(sample_name),
+                global_step=global_step + val_step,
+            )
+            #print("SAMPLE_DATA", sample_data_t0)
+            #print("BOX PREDICTOR", box_predictor)
+            if isinstance(box_predictor, Dict):
+                with torch.no_grad():
+                    pred_boxes = []
+                    for sn in sample_name:
+                        if sn in box_predictor:
+                            pred_boxes.append(Shape(**box_predictor[sn]["raw_box"]).to_tensor())
+                        else:
+                            pred_boxes.append(Shape.createEmpty().to_tensor())
+                    pred_boxes = Shape.from_list_of_shapes(pred_boxes).to(device)
+                    pred_boxes.class_id = pred_boxes.class_id.to(gt_boxes.class_id.dtype)
                     pred_boxes_maps = None
-                else:
-                    pred_boxes, _, pred_boxes_maps, _ = box_predictor(
-                        None,
-                        get_network_input_pcls(
+                    if (
+                        cfg.data.flow_source in sample_data_t0
+                        and "flow_ta_tb" in sample_data_t0[cfg.data.flow_source]
+                    ):
+                        pred_flow = (sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy())
+                    else:
+                        pred_flow = None
+
+            else:
+                with torch.no_grad():
+                    if isinstance(box_predictor, (FlowClusterDetector,)):
+                        pred_boxes = box_predictor(
+                            sample_data_t0,
+                            writer=writer,
+                            writer_prefix=writer_prefix + "/flow_cluster_detector/",
+                            global_step=val_step % img_log_interval,
+                            is_batched=True,
+                        )
+                        pred_boxes_maps = None
+                    else:
+                        pred_boxes, _, pred_boxes_maps, _ = box_predictor(
+                            None,
+                            get_network_input_pcls(cfg, sample_data_t0, "ta", to_device=device),
+                            gt_boxes,
+                            centermaps_gt,
+                            train=False,
+                        ) # PREDICTION
+
+                    if (
+                        cfg.data.flow_source in sample_data_t0
+                        and "flow_ta_tb" in sample_data_t0[cfg.data.flow_source]
+                    ):
+                        pred_flow = (sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy())
+                    else:
+                        pred_flow = None
+
+            pred_boxes = pred_boxes.to(device)
+            assert pred_boxes.rot.shape[-1] == 1, pred_boxes.rot.shape
+
+            if (cfg.data.flow_source != "gt" and cfg.data.flow_source in sample_data_t0) and "flow_ta_tb" in sample_data_t0["gt"]:
+                
+                points = sample_data_t0["pcl_ta"]["pcl"].cpu().numpy()
+
+                gt_point_flow = sample_data_t0["gt"]["flow_ta_tb"].cpu().numpy()
+                moving_mask = (
+                    sample_data_t0["gt"]["moving_mask"].cpu().numpy()
+                    & sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
+                    & sample_data_t0["gt"]["point_has_valid_flow_label"].cpu().numpy()
+                )
+                valid_mask = sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
+
+                for batch_idx in range(sample_data_t0["pcl_ta"]["pcl"].shape[0]):
+                    flow_metrics.update(
+                        points=points[batch_idx],
+                        flow_gt=gt_point_flow[batch_idx],
+                        flow_pred=pred_flow[batch_idx],
+                        is_moving=moving_mask[batch_idx],
+                        mask=valid_mask[batch_idx],
+                    )
+
+            with torch.no_grad():
+                pred_boxes_after_nms_threshold_number_limit = []
+                for batch_idx in range(gt_boxes.pos.shape[0]):
+                    non_batched_pred_boxes = pred_boxes[batch_idx].drop_padding_boxes()
+
+                    box_confidence_too_low = torch.squeeze(non_batched_pred_boxes.probs < logit_threshold, dim=-1)
+
+                    non_batched_pred_boxes = non_batched_pred_boxes[~box_confidence_too_low]
+                    pred_boxes_for_nms_w_valid_probability = non_batched_pred_boxes.clone()
+                    
+                    if cfg.box_prediction.activations.probs == "none" and not (isinstance(box_predictor, BoxLearner)
+                        and isinstance(box_predictor.model, (PointPillarsWrapper, PointRCNNWrapper))
+                    ):
+                        pred_boxes_for_nms_w_valid_probability.probs = torch.sigmoid(pred_boxes_for_nms_w_valid_probability.probs)
+
+                    nms_pred_box_idxs = iou_based_nms(
+                        pred_boxes_for_nms_w_valid_probability,
+                        overlap_threshold=cfg.nms_iou_threshold,
+                        post_nms_max_boxes=500,
+                    )
+                    non_batched_pred_boxes = non_batched_pred_boxes[nms_pred_box_idxs]
+                    if isinstance(val_loader.dataset, (KittiTrackingDataset, KittiObjectDataset)):
+                        # filter detections that fell into areas that have no labels
+                        MIN_NUM_PTS_PER_BOX = 10
+                        enough_points = (
+                            count_box_points_in_kitti_annotated_fov(
+                                non_batched_pred_boxes,
+                                sample_data_t0["pcl_full_w_ground_ta"][batch_idx].to(non_batched_pred_boxes.pos.device),
+                            )
+                            >= MIN_NUM_PTS_PER_BOX
+                        )
+                        non_batched_pred_boxes.valid = (enough_points & non_batched_pred_boxes.valid)
+                        non_batched_pred_boxes = non_batched_pred_boxes.drop_padding_boxes()
+                    non_batched_gt_boxes = gt_boxes[batch_idx].drop_padding_boxes()
+
+                    class_label_src = cfg.data.setdefault("class_label_source", "gt")
+                    if class_label_src == "gt":
+                        class_transfer_matching_threshold = 3.0
+                        (
+                            idxs_into_gt,
+                            idxs_into_preds,
+                            _,
+                            _,
+                            _,
+                        ) = slow_greedy_match_boxes_by_desending_confidence_by_dist(
+                            non_batched_gt_boxes.pos,
+                            non_batched_pred_boxes.pos,
+                            non_batched_pred_confidence=torch.squeeze(
+                                non_batched_pred_boxes.probs, dim=-1
+                            ),
+                            matching_threshold=class_transfer_matching_threshold,
+                            match_in_nd=2,
+                        )
+                        if hasattr(val_loader.dataset, "movable_class_frequencies"):
+                            class_ids_shape = non_batched_pred_boxes.class_id.shape
+                            class_freqs = val_loader.dataset.movable_class_frequencies
+                            dummy_class_ids = np.random.choice(
+                                np.arange(0, len(class_freqs)),
+                                size=class_ids_shape,
+                                p=class_freqs,
+                            )
+                            non_batched_pred_boxes.class_id = (
+                                torch.from_numpy(dummy_class_ids)
+                                .to(non_batched_pred_boxes.class_id.device)
+                                .to(non_batched_pred_boxes.class_id.dtype)
+                            )
+                        else:
+                            non_batched_pred_boxes.class_id = torch.randint(
+                                low=0,
+                                high=len(val_loader.dataset.movable_class_names),
+                                size=non_batched_pred_boxes.class_id.shape,
+                                device=non_batched_pred_boxes.class_id.device,
+                                dtype=non_batched_pred_boxes.class_id.dtype,
+                            )
+                        non_batched_pred_boxes.class_id[idxs_into_preds] = non_batched_gt_boxes.class_id[idxs_into_gt]
+
+                        if val_step < 10:
+                            assert torch.all(
+                                torch.linalg.norm(
+                                    non_batched_pred_boxes.pos[idxs_into_preds][:, :2]
+                                    - non_batched_gt_boxes.pos[idxs_into_gt][:, :2],
+                                    dim=-1,
+                                )
+                                <= class_transfer_matching_threshold
+                            ), "if matching worked correctly, this cannot happen"
+
+                    else:
+                        raise NotImplementedError(class_label_src)
+                    pred_boxes_after_nms_threshold_number_limit.append(non_batched_pred_boxes)
+
+                    non_batched_benchmark_boxes = benchmark_gt_boxes[batch_idx].drop_padding_boxes()
+                    for metric_category in ("visible", "waymo_cropped", "benchmark"):
+                        for range_bin_str in range_based_od_metrics[metric_category]:
+                            for metr_coll in range_based_od_metrics[metric_category][
+                                range_bin_str
+                            ].values():
+                                if metric_category in ("visible", "waymo_cropped"):
+                                    metr_coll.update(
+                                        non_batched_gt_boxes=non_batched_gt_boxes,
+                                        non_batched_pred_boxes=non_batched_pred_boxes,
+                                        sample_token=meta_data["sample_id"][batch_idx],
+                                    )
+                                elif metric_category == "benchmark":
+                                    metr_coll.update(
+                                        non_batched_gt_boxes=non_batched_benchmark_boxes,
+                                        non_batched_pred_boxes=non_batched_pred_boxes,
+                                        sample_token=meta_data["sample_id"][batch_idx],
+                                    )
+                                else:
+                                    raise NotImplementedError(metric_category)
+                    for w_metr in waymo_metrics.values():
+                        w_metr.update(
+                            non_batched_gt_boxes=non_batched_benchmark_boxes,
+                            non_batched_pred_boxes=non_batched_pred_boxes,
+                            sample_token=meta_data["sample_id"][batch_idx],
+                        )
+                    nusc_metric_pred_boxes = non_batched_pred_boxes.clone()
+                    if (
+                        cfg.box_prediction.activations.probs == "none"
+                        and not isinstance(
+                            box_predictor,
+                            (FlowClusterDetector,),
+                        )
+                        and not (
+                            isinstance(box_predictor, BoxLearner)
+                            and isinstance(
+                                box_predictor.model, (PointPillarsWrapper, PointRCNNWrapper)
+                            )
+                        )
+                    ):
+                        nusc_metric_pred_boxes.probs = torch.sigmoid(
+                            nusc_metric_pred_boxes.probs
+                        )
+                    nusc_metrics.update(
+                        non_batched_gt_boxes=non_batched_gt_boxes,
+                        non_batched_pred_boxes=nusc_metric_pred_boxes,
+                        sample_token=meta_data["sample_id"][batch_idx],
+                    )
+                    class_based_metrics.update(
+                        non_batched_gt_boxes=non_batched_gt_boxes,
+                        non_batched_pred_boxes=nusc_metric_pred_boxes,
+                        sample_token=meta_data["sample_id"][batch_idx],
+                    )
+
+                if export_predictions_for_visu and trigger_export_for_visu:
+                    sample_ids = meta_data["sample_id"]
+                    for batch_idx, sample_id in enumerate(sample_ids):
+                        export_data = {
+                            "points_xyzi": sample_data_t0["pcl_full_w_ground_ta"][batch_idx]
+                            .cpu()
+                            .numpy()
+                            .astype(np.float32),
+                            "pred": {
+                                "boxes": pred_boxes_after_nms_threshold_number_limit[
+                                    batch_idx
+                                ]
+                                .clone()
+                                .cpu()
+                                .numpy()
+                                .__dict__
+                            },
+                            "gt": {
+                                "boxes": gt_boxes[batch_idx]
+                                .clone()
+                                .drop_padding_boxes()
+                                .cpu()
+                                .numpy()
+                                .__dict__
+                            },
+                        }
+                        export_sample_name = (
+                            export_predictions_for_visu / sample_id.replace("/", "_")
+                        )
+                        np.savez_compressed(export_sample_name, export_data)
+
+                if export_predictions_mmdet3d:
+                    for exp_batch_idx, sample_id in enumerate(meta_data["sample_id"]):
+                        exp_boxes_sensor_coords: Shape = (
+                            pred_boxes_after_nms_threshold_number_limit[exp_batch_idx]
+                            .clone()
+                            .cpu()
+                        )
+                        if isinstance(val_loader.dataset, NuscenesDataset):
+                            boxes_official_coords = exp_boxes_sensor_coords.transform(
+                                torch.from_numpy(np.linalg.inv(kitti_lidar_T_nusc_vehicle))
+                            )
+                        elif isinstance(
+                            val_loader.dataset, (KittiObjectDataset, AV2Dataset)
+                        ):
+                            boxes_official_coords = exp_boxes_sensor_coords.clone()
+                        elif isinstance(val_loader.dataset, WaymoDataset):
+                            boxes_official_coords = exp_boxes_sensor_coords.transform(
+                                torch.from_numpy(np.linalg.inv(vehicle_Twaymo_lidar))
+                            )
+                        else:
+                            raise NotImplementedError(val_loader.dataset.__class__.__name__)
+
+                        mmdet3d_boxes = convert_box_ours_to_mmdet3d(
+                            boxes_official_coords,
+                            val_loader.dataset.idx_to_class_name_mapping,
+                        )
+                        pkl_export_sample_name = (
+                            export_predictions_mmdet3d / sample_id.replace("/", "_")
+                        ).with_suffix(".pkl")
+                        with open(pkl_export_sample_name, "wb") as file:
+                            pickle.dump(mmdet3d_boxes, file)
+
+                if trigger_img_logging:
+                    if (
+                        num_extra_tbs > 0
+                        and "sample_id" in meta_data
+                        and meta_data["sample_id"] is not None
+                    ):
+                        sample_ids = meta_data["sample_id"]
+                        if cfg.data.source == "nuscenes":
+                            tb_prefix = "|".join(
+                                [
+                                    "_".join(el.split("-")[1].split("_")[:2])
+                                    for el in sample_ids
+                                ]
+                            )
+                        elif cfg.data.source == "kitti":
+                            tb_prefix = "_|_".join(sample_ids)
+                        elif cfg.data.source == "waymo":
+                            sids = [
+                                sid.split("-")[-1].replace("_with_camera_labels/", "")
+                                for sid in sample_ids
+                            ]
+                            tb_prefix = "_|_".join(sids)
+                        else:
+                            raise NotImplementedError(cfg.data.source)
+
+                        prefix = writer_prefix + tb_prefix + "/"
+                        num_extra_tbs -= 1
+                        step = global_step
+                    else:
+                        prefix = writer_prefix
+                        step = global_step + val_step
+                    log_box_movement(
+                        cfg=cfg,
+                        writer=writer,
+                        global_step=step,
+                        sample_data_a=sample_data_t0,
+                        sample_data_b=sample_data_t1,
+                        pred_boxes=Shape.from_list_of_shapes(
+                            pred_boxes_after_nms_threshold_number_limit
+                        ),
+                        writer_prefix=prefix,
+                    )
+                    if "flow_bev_ta_tb" in sample_data_t0["gt"]:
+                        log_flow_image(
+                            cfg=cfg,
+                            writer=writer,
+                            global_step=global_step,
+                            flow_2d=sample_data_t0["gt"]["flow_bev_ta_tb"][
+                                :, :, :, :2
+                            ].permute((0, 3, 1, 2)),
+                            prefix=prefix,
+                            suffix="/flow/GT",
+                        )
+                    if pred_boxes_maps is not None and cfg.network.name == "centerpoint":
+                        gt_img_with_pred_logis = render_gt_boxes_with_predicted_logits(
+                            cfg, mask_gt_renderer, sample_data_t0, gt_boxes, pred_boxes_maps
+                        )
+
+                        writer.add_images(
+                            prefix + "gt_box_with_pred_logits",
+                            gt_img_with_pred_logis,
+                            global_step=step,
+                            dataformats="NHWC",
+                        )
+
+                    max_num_pred_visu_boxes = 20
+                    pred_visu_boxes = []
+                    for all_boxes in pred_boxes_after_nms_threshold_number_limit:
+                        if all_boxes.shape[0] > max_num_pred_visu_boxes:
+                            keep_top_box_idxs = torch.argsort(
+                                torch.squeeze(all_boxes.probs, dim=-1), descending=True
+                            )[:max_num_pred_visu_boxes]
+                            pred_visu_boxes.append(all_boxes[keep_top_box_idxs])
+                        else:
+                            pred_visu_boxes.append(all_boxes)
+
+                    pred_visu_boxes = Shape.from_list_of_shapes(pred_visu_boxes)
+
+                    img_canvas = create_range_image_w_boxes(
+                        pcls=get_network_input_pcls(
                             cfg, sample_data_t0, "ta", to_device=device
                         ),
-                        gt_boxes,
-                        centermaps_gt,
-                        train=False,
+                        boxes=gt_boxes,
+                        fitted_boxes=pred_visu_boxes,
                     )
 
-                if (
-                    cfg.data.flow_source in sample_data_t0
-                    and "flow_ta_tb" in sample_data_t0[cfg.data.flow_source]
-                ):
-                    pred_flow = (sample_data_t0[cfg.data.flow_source]["flow_ta_tb"].cpu().numpy())
-                else:
-                    pred_flow = None
-
-        pred_boxes = pred_boxes.to(device)
-        assert pred_boxes.rot.shape[-1] == 1, pred_boxes.rot.shape
-        if (cfg.data.flow_source != "gt" and cfg.data.flow_source in sample_data_t0
-        ) and "flow_ta_tb" in sample_data_t0["gt"]:
-            points = sample_data_t0["pcl_ta"]["pcl"].cpu().numpy()
-
-            gt_point_flow = sample_data_t0["gt"]["flow_ta_tb"].cpu().numpy()
-            moving_mask = (
-                sample_data_t0["gt"]["moving_mask"].cpu().numpy()
-                & sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
-                & sample_data_t0["gt"]["point_has_valid_flow_label"].cpu().numpy()
-            )
-            valid_mask = sample_data_t0["pcl_ta"]["pcl_is_valid"].cpu().numpy()
-
-            for batch_idx in range(sample_data_t0["pcl_ta"]["pcl"].shape[0]):
-                flow_metrics.update(
-                    points=points[batch_idx],
-                    flow_gt=gt_point_flow[batch_idx],
-                    flow_pred=pred_flow[batch_idx],
-                    is_moving=moving_mask[batch_idx],
-                    mask=valid_mask[batch_idx],
-                )
-
-        with torch.no_grad():
-            pred_boxes_after_nms_threshold_number_limit = []
-            for batch_idx in range(gt_boxes.pos.shape[0]):
-                non_batched_pred_boxes = pred_boxes[batch_idx].drop_padding_boxes()
-
-                box_confidence_too_low = torch.squeeze(
-                    non_batched_pred_boxes.probs < logit_threshold, dim=-1
-                )
-                non_batched_pred_boxes = non_batched_pred_boxes[~box_confidence_too_low]
-                pred_boxes_for_nms_w_valid_probability = non_batched_pred_boxes.clone()
-                if cfg.box_prediction.activations.probs == "none" and not (
-                    isinstance(box_predictor, BoxLearner)
-                    and isinstance(
-                        box_predictor.model, (PointPillarsWrapper, PointRCNNWrapper)
-                    )
-                ):
-                    pred_boxes_for_nms_w_valid_probability.probs = torch.sigmoid(
-                        pred_boxes_for_nms_w_valid_probability.probs
+                    writer.add_images(
+                        prefix + "range_images",
+                        img_canvas,
+                        dataformats="NHWC",
+                        global_step=step,
                     )
 
-                nms_pred_box_idxs = iou_based_nms(
-                    pred_boxes_for_nms_w_valid_probability,
-                    overlap_threshold=cfg.nms_iou_threshold,
-                    post_nms_max_boxes=500,
-                )
-                non_batched_pred_boxes = non_batched_pred_boxes[nms_pred_box_idxs]
-                if isinstance(val_loader.dataset, (KittiTrackingDataset, KittiObjectDataset)):
-                    # filter detections that fell into areas that have no labels
-                    MIN_NUM_PTS_PER_BOX = 10
-                    enough_points = (
-                        count_box_points_in_kitti_annotated_fov(
-                            non_batched_pred_boxes,
-                            sample_data_t0["pcl_full_w_ground_ta"][batch_idx].to(
-                                non_batched_pred_boxes.pos.device
-                            ),
-                        )
-                        >= MIN_NUM_PTS_PER_BOX
-                    )
-                    non_batched_pred_boxes.valid = (
-                        enough_points & non_batched_pred_boxes.valid
-                    )
-                    non_batched_pred_boxes = non_batched_pred_boxes.drop_padding_boxes()
-                non_batched_gt_boxes = gt_boxes[batch_idx].drop_padding_boxes()
-
-                class_label_src = cfg.data.setdefault("class_label_source", "gt")
-                if class_label_src == "gt":
-                    class_transfer_matching_threshold = 3.0
-                    (
-                        idxs_into_gt,
-                        idxs_into_preds,
-                        _,
-                        _,
-                        _,
-                    ) = slow_greedy_match_boxes_by_desending_confidence_by_dist(
-                        non_batched_gt_boxes.pos,
-                        non_batched_pred_boxes.pos,
-                        non_batched_pred_confidence=torch.squeeze(
-                            non_batched_pred_boxes.probs, dim=-1
-                        ),
-                        matching_threshold=class_transfer_matching_threshold,
-                        match_in_nd=2,
-                    )
-                    if hasattr(val_loader.dataset, "movable_class_frequencies"):
-                        class_ids_shape = non_batched_pred_boxes.class_id.shape
-                        class_freqs = val_loader.dataset.movable_class_frequencies
-                        dummy_class_ids = np.random.choice(
-                            np.arange(0, len(class_freqs)),
-                            size=class_ids_shape,
-                            p=class_freqs,
-                        )
-                        non_batched_pred_boxes.class_id = (
-                            torch.from_numpy(dummy_class_ids)
-                            .to(non_batched_pred_boxes.class_id.device)
-                            .to(non_batched_pred_boxes.class_id.dtype)
-                        )
-                    else:
-                        non_batched_pred_boxes.class_id = torch.randint(
-                            low=0,
-                            high=len(val_loader.dataset.movable_class_names),
-                            size=non_batched_pred_boxes.class_id.shape,
-                            device=non_batched_pred_boxes.class_id.device,
-                            dtype=non_batched_pred_boxes.class_id.dtype,
-                        )
-                    non_batched_pred_boxes.class_id[
-                        idxs_into_preds
-                    ] = non_batched_gt_boxes.class_id[idxs_into_gt]
-
-                    if val_step < 10:
-                        assert torch.all(
-                            torch.linalg.norm(
-                                non_batched_pred_boxes.pos[idxs_into_preds][:, :2]
-                                - non_batched_gt_boxes.pos[idxs_into_gt][:, :2],
-                                dim=-1,
-                            )
-                            <= class_transfer_matching_threshold
-                        ), "if matching worked correctly, this cannot happen"
-
-                else:
-                    raise NotImplementedError(class_label_src)
-                pred_boxes_after_nms_threshold_number_limit.append(
-                    non_batched_pred_boxes
-                )
-
-                non_batched_benchmark_boxes = benchmark_gt_boxes[
-                    batch_idx
-                ].drop_padding_boxes()
-                for metric_category in ("visible", "waymo_cropped", "benchmark"):
+            if (
+                incremental_log_every_n_hours is not None
+                and (time.time() - time_last_logged) > 3600 * incremental_log_every_n_hours
+            ):
+                for metric_category in range_based_od_metrics:
                     for range_bin_str in range_based_od_metrics[metric_category]:
                         for metr_coll in range_based_od_metrics[metric_category][
                             range_bin_str
                         ].values():
-                            if metric_category in ("visible", "waymo_cropped"):
-                                metr_coll.update(
-                                    non_batched_gt_boxes=non_batched_gt_boxes,
-                                    non_batched_pred_boxes=non_batched_pred_boxes,
-                                    sample_token=meta_data["sample_id"][batch_idx],
-                                )
-                            elif metric_category == "benchmark":
-                                metr_coll.update(
-                                    non_batched_gt_boxes=non_batched_benchmark_boxes,
-                                    non_batched_pred_boxes=non_batched_pred_boxes,
-                                    sample_token=meta_data["sample_id"][batch_idx],
-                                )
-                            else:
-                                raise NotImplementedError(metric_category)
-                for w_metr in waymo_metrics.values():
-                    w_metr.update(
-                        non_batched_gt_boxes=non_batched_benchmark_boxes,
-                        non_batched_pred_boxes=non_batched_pred_boxes,
-                        sample_token=meta_data["sample_id"][batch_idx],
-                    )
-                nusc_metric_pred_boxes = non_batched_pred_boxes.clone()
-                if (
-                    cfg.box_prediction.activations.probs == "none"
-                    and not isinstance(
-                        box_predictor,
-                        (FlowClusterDetector,),
-                    )
-                    and not (
-                        isinstance(box_predictor, BoxLearner)
-                        and isinstance(
-                            box_predictor.model, (PointPillarsWrapper, PointRCNNWrapper)
-                        )
-                    )
-                ):
-                    nusc_metric_pred_boxes.probs = torch.sigmoid(
-                        nusc_metric_pred_boxes.probs
-                    )
-                nusc_metrics.update(
-                    non_batched_gt_boxes=non_batched_gt_boxes,
-                    non_batched_pred_boxes=nusc_metric_pred_boxes,
-                    sample_token=meta_data["sample_id"][batch_idx],
+                            metr_coll.log(
+                                global_step + val_step,
+                                summary_writer=writer,
+                                writer_prefix=f"{writer_prefix}interm_result/{metric_category}/detection_metrics/{range_bin_str}",
+                            )
+                flow_metrics.log_metrics_curves(
+                    global_step + val_step,
+                    summary_writer=writer,
+                    writer_prefix=writer_prefix + "interm_result/flow_metrics/",
                 )
-                class_based_metrics.update(
-                    non_batched_gt_boxes=non_batched_gt_boxes,
-                    non_batched_pred_boxes=nusc_metric_pred_boxes,
-                    sample_token=meta_data["sample_id"][batch_idx],
-                )
-
-            if export_predictions_for_visu and trigger_export_for_visu:
-                sample_ids = meta_data["sample_id"]
-                for batch_idx, sample_id in enumerate(sample_ids):
-                    export_data = {
-                        "points_xyzi": sample_data_t0["pcl_full_w_ground_ta"][batch_idx]
-                        .cpu()
-                        .numpy()
-                        .astype(np.float32),
-                        "pred": {
-                            "boxes": pred_boxes_after_nms_threshold_number_limit[
-                                batch_idx
-                            ]
-                            .clone()
-                            .cpu()
-                            .numpy()
-                            .__dict__
-                        },
-                        "gt": {
-                            "boxes": gt_boxes[batch_idx]
-                            .clone()
-                            .drop_padding_boxes()
-                            .cpu()
-                            .numpy()
-                            .__dict__
-                        },
-                    }
-                    export_sample_name = (
-                        export_predictions_for_visu / sample_id.replace("/", "_")
-                    )
-                    np.savez_compressed(export_sample_name, export_data)
-
-            if export_predictions_mmdet3d:
-                for exp_batch_idx, sample_id in enumerate(meta_data["sample_id"]):
-                    exp_boxes_sensor_coords: Shape = (
-                        pred_boxes_after_nms_threshold_number_limit[exp_batch_idx]
-                        .clone()
-                        .cpu()
-                    )
-                    if isinstance(val_loader.dataset, NuscenesDataset):
-                        boxes_official_coords = exp_boxes_sensor_coords.transform(
-                            torch.from_numpy(np.linalg.inv(kitti_lidar_T_nusc_vehicle))
-                        )
-                    elif isinstance(
-                        val_loader.dataset, (KittiObjectDataset, AV2Dataset)
-                    ):
-                        boxes_official_coords = exp_boxes_sensor_coords.clone()
-                    elif isinstance(val_loader.dataset, WaymoDataset):
-                        boxes_official_coords = exp_boxes_sensor_coords.transform(
-                            torch.from_numpy(np.linalg.inv(vehicle_Twaymo_lidar))
-                        )
-                    else:
-                        raise NotImplementedError(val_loader.dataset.__class__.__name__)
-
-                    mmdet3d_boxes = convert_box_ours_to_mmdet3d(
-                        boxes_official_coords,
-                        val_loader.dataset.idx_to_class_name_mapping,
-                    )
-                    pkl_export_sample_name = (
-                        export_predictions_mmdet3d / sample_id.replace("/", "_")
-                    ).with_suffix(".pkl")
-                    with open(pkl_export_sample_name, "wb") as file:
-                        pickle.dump(mmdet3d_boxes, file)
-
-            if trigger_img_logging:
-                if (
-                    num_extra_tbs > 0
-                    and "sample_id" in meta_data
-                    and meta_data["sample_id"] is not None
-                ):
-                    sample_ids = meta_data["sample_id"]
-                    if cfg.data.source == "nuscenes":
-                        tb_prefix = "|".join(
-                            [
-                                "_".join(el.split("-")[1].split("_")[:2])
-                                for el in sample_ids
-                            ]
-                        )
-                    elif cfg.data.source == "kitti":
-                        tb_prefix = "_|_".join(sample_ids)
-                    elif cfg.data.source == "waymo":
-                        sids = [
-                            sid.split("-")[-1].replace("_with_camera_labels/", "")
-                            for sid in sample_ids
-                        ]
-                        tb_prefix = "_|_".join(sids)
-                    else:
-                        raise NotImplementedError(cfg.data.source)
-
-                    prefix = writer_prefix + tb_prefix + "/"
-                    num_extra_tbs -= 1
-                    step = global_step
-                else:
-                    prefix = writer_prefix
-                    step = global_step + val_step
-                log_box_movement(
-                    cfg=cfg,
-                    writer=writer,
-                    global_step=step,
-                    sample_data_a=sample_data_t0,
-                    sample_data_b=sample_data_t1,
-                    pred_boxes=Shape.from_list_of_shapes(
-                        pred_boxes_after_nms_threshold_number_limit
-                    ),
-                    writer_prefix=prefix,
-                )
-                if "flow_bev_ta_tb" in sample_data_t0["gt"]:
-                    log_flow_image(
-                        cfg=cfg,
-                        writer=writer,
-                        global_step=global_step,
-                        flow_2d=sample_data_t0["gt"]["flow_bev_ta_tb"][
-                            :, :, :, :2
-                        ].permute((0, 3, 1, 2)),
-                        prefix=prefix,
-                        suffix="/flow/GT",
-                    )
-                if pred_boxes_maps is not None and cfg.network.name == "centerpoint":
-                    gt_img_with_pred_logis = render_gt_boxes_with_predicted_logits(
-                        cfg, mask_gt_renderer, sample_data_t0, gt_boxes, pred_boxes_maps
-                    )
-
-                    writer.add_images(
-                        prefix + "gt_box_with_pred_logits",
-                        gt_img_with_pred_logis,
-                        global_step=step,
-                        dataformats="NHWC",
-                    )
-
-                max_num_pred_visu_boxes = 20
-                pred_visu_boxes = []
-                for all_boxes in pred_boxes_after_nms_threshold_number_limit:
-                    if all_boxes.shape[0] > max_num_pred_visu_boxes:
-                        keep_top_box_idxs = torch.argsort(
-                            torch.squeeze(all_boxes.probs, dim=-1), descending=True
-                        )[:max_num_pred_visu_boxes]
-                        pred_visu_boxes.append(all_boxes[keep_top_box_idxs])
-                    else:
-                        pred_visu_boxes.append(all_boxes)
-
-                pred_visu_boxes = Shape.from_list_of_shapes(pred_visu_boxes)
-
-                img_canvas = create_range_image_w_boxes(
-                    pcls=get_network_input_pcls(
-                        cfg, sample_data_t0, "ta", to_device=device
-                    ),
-                    boxes=gt_boxes,
-                    fitted_boxes=pred_visu_boxes,
-                )
-
-                writer.add_images(
-                    prefix + "range_images",
-                    img_canvas,
-                    dataformats="NHWC",
-                    global_step=step,
-                )
-
-        if (
-            incremental_log_every_n_hours is not None
-            and (time.time() - time_last_logged) > 3600 * incremental_log_every_n_hours
-        ):
-            for metric_category in range_based_od_metrics:
-                for range_bin_str in range_based_od_metrics[metric_category]:
-                    for metr_coll in range_based_od_metrics[metric_category][
-                        range_bin_str
-                    ].values():
-                        metr_coll.log(
-                            global_step + val_step,
-                            summary_writer=writer,
-                            writer_prefix=f"{writer_prefix}interm_result/{metric_category}/detection_metrics/{range_bin_str}",
-                        )
-            flow_metrics.log_metrics_curves(
-                global_step + val_step,
-                summary_writer=writer,
-                writer_prefix=writer_prefix + "interm_result/flow_metrics/",
-            )
-            nusc_metrics.log(
-                global_step + val_step,
-                summary_writer=writer,
-                writer_prefix=writer_prefix
-                + "interm_result/NUSC_OFFICIAL/detection_metrics/",
-                render_curves_to=Path(writer.log_dir).parent.joinpath(
-                    "intermediate_nuscenes_pdfs"
-                ),
-            )
-            class_based_metrics.log(
-                global_step + val_step,
-                summary_writer=writer,
-                writer_prefix=writer_prefix
-                + f"interm_result/{metric_description}/detection_metrics/",
-            )
-            for range_str, w_metric in waymo_metrics.items():
-                w_metric.log(
+                nusc_metrics.log(
                     global_step + val_step,
                     summary_writer=writer,
                     writer_prefix=writer_prefix
-                    + f"interm_result/WAYMO/detection_metrics/{range_str}",
+                    + "interm_result/NUSC_OFFICIAL/detection_metrics/",
+                    render_curves_to=Path(writer.log_dir).parent.joinpath(
+                        "intermediate_nuscenes_pdfs"
+                    ),
                 )
-            time_last_logged = time.time()
+                class_based_metrics.log(
+                    global_step + val_step,
+                    summary_writer=writer,
+                    writer_prefix=writer_prefix
+                    + f"interm_result/{metric_description}/detection_metrics/",
+                )
+                for range_str, w_metric in waymo_metrics.items():
+                    w_metric.log(
+                        global_step + val_step,
+                        summary_writer=writer,
+                        writer_prefix=writer_prefix
+                        + f"interm_result/WAYMO/detection_metrics/{range_str}",
+                    )
+                time_last_logged = time.time()
+    except:
+        pass
+    
     for metric_category in range_based_od_metrics:
         for range_bin_str in range_based_od_metrics[metric_category]:
             for metr_coll in range_based_od_metrics[metric_category][
@@ -808,6 +796,7 @@ def main():
     max_num_steps = max_num_fast_test_steps if args.fast_test else None
 
     writer.add_text("config", pretty_json(cfg), 0)
+
 
     sample_data_t0 = run_val(cfg, val_loader, box_predictor, mask_gt_renderer, "online_val/",
             writer=writer, global_step=0, max_num_steps=100)

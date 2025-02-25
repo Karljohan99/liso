@@ -53,7 +53,7 @@ class BoxLearner(torch.nn.Module):
                                                                 dataset_img_shape=pred_bev_maps_shape).astype(np.float32)[..., 0:2]),
                 requires_grad=False)
 
-    def forward(self, img_t0, pcls_t0, gt_boxes=None, centermaps_gt=None, train=True) -> Tuple[Shape, Dict]:
+    def forward(self, img_t0, pcls_t0, gt_boxes=None, centermaps_gt=None, train=True):# -> Tuple[Shape, Dict]:
         if self.cfg.network.name == "echo_gt":
             warn_once(getLogger(), "WARNING: NETWORK ECHOES GROUNDTRUTH")
             assert gt_boxes is not None
@@ -77,7 +77,9 @@ class BoxLearner(torch.nn.Module):
 
         flat_boxes = maybe_flatten_anchors_except_for({k: v.clone() for k, v in decoded_box_maps.items()}, ())
 
-        return (Shape(**flat_boxes), decoded_box_maps, activated_box_maps, aux_outputs)
+        shape = Shape(**flat_boxes)
+
+        return (shape.pos, shape.dim, shape.rot, shape.probs, decoded_box_maps, activated_box_maps, aux_outputs)
 
     def apply_all_output_modifications(self, *, raw_box_vars: Dict[str, torch.FloatTensor], gt_boxes=None, centermaps_gt=None):
         shape_vars_activated = {
