@@ -816,10 +816,12 @@ def main():
     #        writer_prefix="full_eval/", writer=writer, global_step=0, max_num_steps=max_num_steps,
     #        incremental_log_every_n_hours=4, export_predictions_for_visu=args.export_predictions_for_visu)
 
-    sample_data_t0.pop('gt', None)
+    input_pcds = get_network_input_pcls(cfg, sample_data_t0, "ta", to_device=device)
+
+    print("INPUT", input_pcds)
     save_onnx = maybe_slow_log_dir.joinpath("checkpoints", "test.onnx")
     print("ONNX save path", save_onnx)
-    torch.onnx.export(box_predictor, sample_data_t0, save_onnx)
+    torch.onnx.export(box_predictor, (None, input_pcds), save_onnx)
 
 if __name__ == "__main__":
     main()
