@@ -28,18 +28,18 @@ def calc_ap(precisions, min_recall: float, min_precision: float) -> float:
     assert 0 <= min_precision < 1
     assert 0 <= min_recall <= 1
 
-    print("PRECISIONS", precisions)
+    #print("PRECISIONS", precisions)
     prec = np.copy(precisions)
-    print("MIN RECALL", min_recall)
+    #print("MIN RECALL", min_recall)
     if min_recall != 0.0:
         assert len(prec) == 101, len(prec)
     prec = prec[
         round(100 * min_recall) + 1 :
     ]  # Clip low recalls. +1 to exclude the min recall bin.
-    print("PREC", prec)
-    print("MIN PRECISION", min_precision)
+    #print("PREC", prec)
+    #print("MIN PRECISION", min_precision)
     prec -= min_precision  # Clip low precision
-    print("PREC", prec)
+    #print("PREC", prec)
     prec[prec < 0] = 0
     return float(np.mean(prec)) / (1.0 - min_precision)
 
