@@ -75,122 +75,95 @@ class Voxelization(nn.Module):
     def dynamic_voxelize_forward(self, points, voxel_size, coors_range, NDim=3):
         """
         Compute voxel coordinates for each valid point.
-        
+
         Args:
             points (torch.Tensor): Tensor of shape (N, D) where the first NDim columns 
                                 are the spatial coordinates.
-            voxel_size (list[float] or torch.Tensor): The voxel size per dimension.
-            coors_range (list[float] or torch.Tensor): The coordinate range as 
-                [min_x, min_y, min_z, max_x, max_y, max_z] (for NDim=3) or more generally 
+            voxel_size (list[float] or torch.Tensor): Voxel size per dimension.
+            coors_range (list[float] or torch.Tensor): Coordinate range as 
                 [min_0, ..., min_{NDim-1}, max_0, ..., max_{NDim-1}].
             NDim (int): Number of spatial dimensions (default: 3).
-            
+
         Returns:
-            coors (torch.Tensor): Tensor of shape (M, NDim) containing the voxel indices 
-                                (as integers) for each valid point (M ≤ N).
+            coors (torch.Tensor): Tensor of shape (M, NDim) containing the voxel indices.
         """
-        # Convert voxel_size and coors_range to tensors if needed.
-        if not isinstance(voxel_size, torch.Tensor):
-            voxel_size = torch.tensor(voxel_size, device=points.device, dtype=points.dtype)
-        if not isinstance(coors_range, torch.Tensor):
-            coors_range = torch.tensor(coors_range, device=points.device, dtype=points.dtype)
-        
-        # The first NDim values are the minimums; the next NDim values are the maximums.
+        # Convert constant lists to tensors using new_tensor to avoid tracing warnings.
+        if not torch.is_tensor(voxel_size):
+            voxel_size = points.new_tensor(voxel_size)
+        if not torch.is_tensor(coors_range):
+            coors_range = points.new_tensor(coors_range)
+
         min_range = coors_range[:NDim]
         max_range = coors_range[NDim:]
         
-        # Create a mask for points inside the coordinate range.
         valid_mask = (points[:, :NDim] >= min_range) & (points[:, :NDim] < max_range)
         valid_mask = valid_mask.all(dim=1)
         valid_points = points[valid_mask]
-        
-        # Compute the voxel coordinate for each valid point.
+
+        # Compute voxel coordinates without converting to Python lists.
         coors = ((valid_points[:, :NDim] - min_range) / voxel_size).floor().int()
         return coors
 
 
-    def hard_voxelize_forward(self, points, voxel_size, coors_range, max_points, max_voxels, NDim=3, deterministic=True):
+    def hard_voxelize_forward(points, voxel_size, coors_range, max_points, max_voxels, NDim=3, deterministic=True):
         """
-        Group points into voxels (hard voxelization) and limit the number of points per voxel.
-        
-        For each point (with coordinates given by its first NDim entries), if the point lies
-        within the provided coordinate range, compute its voxel coordinate. Then group all
-        points falling into the same voxel. For each voxel, only up to `max_points` are kept.
-        In total no more than `max_voxels` voxels will be returned.
-        
+        Group points into voxels and limit the number of points per voxel.
+
         Args:
-            points (torch.Tensor): Tensor of shape (N, D) containing points (the first NDim
-                                columns are spatial coordinates).
+            points (torch.Tensor): Tensor of shape (N, D) containing points (first NDim columns are coordinates).
             voxel_size (list[float] or torch.Tensor): Voxel size per dimension.
-            coors_range (list[float] or torch.Tensor): Coordinate range [min_0, ..., min_{NDim-1},
-                                                    max_0, ..., max_{NDim-1}].
+            coors_range (list[float] or torch.Tensor): Coordinate range as 
+                [min_0, ..., min_{NDim-1}, max_0, ..., max_{NDim-1}].
             max_points (int): Maximum number of points to keep per voxel.
-            max_voxels (int): Maximum number of voxels to generate.
+            max_voxels (int): Maximum number of voxels.
             NDim (int): Number of spatial dimensions (default: 3).
-            deterministic (bool): Whether to use a deterministic ordering when processing voxels.
-        
+            deterministic (bool): Whether to use a deterministic ordering.
+
         Returns:
-            voxels (torch.Tensor): Tensor of shape (M, max_points, D) containing the points in each voxel.
+            voxels (torch.Tensor): Tensor of shape (M, max_points, D) containing the points per voxel.
             coors (torch.Tensor): Tensor of shape (M, NDim) with the voxel indices.
-            num_points_per_voxel (torch.Tensor): Tensor of shape (M,) with the actual number of points per voxel.
-            voxel_num (int): The total number of voxels (M).
+            num_points_per_voxel (torch.Tensor): Tensor of shape (M,) with the number of points in each voxel.
+            voxel_num (int): Total number of voxels (M).
         """
-        # Convert voxel_size and coors_range to tensors if needed.
-        if not isinstance(voxel_size, torch.Tensor):
-            voxel_size = torch.tensor(voxel_size, device=points.device, dtype=points.dtype)
-        if not isinstance(coors_range, torch.Tensor):
-            coors_range = torch.tensor(coors_range, device=points.device, dtype=points.dtype)
-        
+        # Convert constant lists to tensors with new_tensor.
+        if not torch.is_tensor(voxel_size):
+            voxel_size = points.new_tensor(voxel_size)
+        if not torch.is_tensor(coors_range):
+            coors_range = points.new_tensor(coors_range)
+
         min_range = coors_range[:NDim]
         max_range = coors_range[NDim:]
         
-        # Select points that fall within the valid coordinate range.
         valid_mask = (points[:, :NDim] >= min_range) & (points[:, :NDim] < max_range)
         valid_mask = valid_mask.all(dim=1)
         valid_points = points[valid_mask]
-        
-        # Compute the voxel coordinate for each valid point.
+
         voxel_coords = ((valid_points[:, :NDim] - min_range) / voxel_size).floor().int()
         
-        # Group points by voxel coordinates using a Python dictionary.
-        voxel_dict = {}
-        for idx, coord in enumerate(voxel_coords.tolist()):
-            key = tuple(coord)
-            if key not in voxel_dict:
-                voxel_dict[key] = []
-            voxel_dict[key].append(idx)
+        # Group points by voxel coordinates using torch.unique.
+        unique_coords, inverse = torch.unique(voxel_coords, return_inverse=True, dim=0)
         
-        # Optionally sort the keys to enforce a deterministic order.
-        voxel_keys = list(voxel_dict.keys())
-        if deterministic:
-            voxel_keys = sorted(voxel_keys)
+        # If too many voxels, keep only the first max_voxels.
+        if unique_coords.shape[0] > max_voxels:
+            unique_coords = unique_coords[:max_voxels]
         
-        # Limit the number of voxels.
-        if len(voxel_keys) > max_voxels:
-            voxel_keys = voxel_keys[:max_voxels]
-        voxel_num = len(voxel_keys)
-        
-        # Prepare output tensors.
+        voxel_num = unique_coords.shape[0]
         D = points.shape[1]
         voxels = torch.zeros((voxel_num, max_points, D), device=points.device, dtype=points.dtype)
-        coors = torch.zeros((voxel_num, NDim), device=points.device, dtype=torch.int32)
+        coors = unique_coords  # (voxel_num, NDim)
         num_points_per_voxel = torch.zeros((voxel_num,), device=points.device, dtype=torch.int32)
-        
-        # Fill in the voxel information.
-        for i, key in enumerate(voxel_keys):
-            point_indices = voxel_dict[key]
-            # If there are more than max_points in this voxel, truncate the list.
-            if len(point_indices) > max_points:
-                if deterministic:
-                    point_indices = point_indices[:max_points]
-                else:
-                    # In a non-deterministic setting you might choose randomly.
-                    point_indices = point_indices[:max_points]
-            num = len(point_indices)
+
+        # For each unique voxel, gather points that fall in it.
+        for i in range(voxel_num):
+            # Use tensor boolean indexing instead of converting to a Python list.
+            indices = (inverse == i).nonzero(as_tuple=True)[0]
+            if indices.numel() > max_points:
+                indices = indices[:max_points]
+            num = indices.numel()
             num_points_per_voxel[i] = num
-            coors[i] = torch.tensor(key, device=points.device, dtype=torch.int32)
-            pts = valid_points[point_indices]
+            pts = valid_points[indices]
             voxels[i, :num] = pts
+
         return voxels, coors, num_points_per_voxel, voxel_num
 
     def forward(self, points: torch.Tensor) -> torch.Tensor:
