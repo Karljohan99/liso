@@ -812,11 +812,13 @@ def main():
     input_pcds = get_network_input_pcls(cfg, sample_data_t0, "ta", to_device=device)
 
     print("INPUT", input_pcds)
-    save_onnx = "checkpoints/test.onnx"
-    print("ONNX save path", save_onnx)
-    import cProfile
-    cProfile.run('torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11, verbose=True)')
-    #torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11, verbose=True)
+    #save_onnx = "checkpoints/test.onnx"
+    #print("ONNX save path", save_onnx)
+    #import cProfile
+    #cProfile.run('torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11, verbose=True)')
+    box_predictor.to("cpu")
+    input_pcds = input_pcds.to("cpu")
+    torch.onnx.export(box_predictor, (None, input_pcds), "test.onnx", opset_version=11, verbose=True)
 
 if __name__ == "__main__":
     main()
