@@ -105,7 +105,7 @@ class Voxelization(nn.Module):
         return coors
 
 
-    def hard_voxelize_forward(points, voxel_size, coors_range, max_points, max_voxels, NDim=3, deterministic=True):
+    def hard_voxelize_forward(self, points, voxel_size, coors_range, max_points, max_voxels, NDim=3, deterministic=True):
         """
         Group points into voxels and limit the number of points per voxel.
 
