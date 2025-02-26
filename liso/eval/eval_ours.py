@@ -816,8 +816,10 @@ def main():
     #print("ONNX save path", save_onnx)
     #import cProfile
     #cProfile.run('torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11, verbose=True)')
-    box_predictor.to("cpu")
-    input_pcds = [x.to("cpu") for x in input_pcds]
+    #box_predictor.to("cpu")
+    #input_pcds = [x.to("cpu") for x in input_pcds]
+    traced_script_module = torch.jit.trace(box_predictor, (None, input_pcds))
+    traced_script_module.save("box_predictor.pt")
     torch.onnx.export(box_predictor, (None, input_pcds), "test.onnx", opset_version=11, verbose=True)
 
 if __name__ == "__main__":
