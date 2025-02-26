@@ -1,6 +1,7 @@
 import numpy as np
 import torch
-from mmcv.ops import Voxelization
+#from mmcv.ops import Voxelization
+from voxelization import Voxelization
 from mmcv.runner import force_fp32
 from mmdet3d.models.middle_encoders.pillar_scatter import PointPillarsScatter
 from mmdet3d.models.voxel_encoders.pillar_encoder import PillarFeatureNet
