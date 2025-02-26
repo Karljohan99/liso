@@ -200,23 +200,24 @@ class Voxelization(nn.Module):
             max_voxels = self.max_voxels[1]
 
         if self.max_num_points == -1 or max_voxels == -1:
-            coors = torch.zeros((points.size(0), 3), dtype=torch.int, device=points.device)
-            self.dynamic_voxelize_forward(points, self.voxel_size, self.point_cloud_range, coors, NDim=3)
+            #coors = torch.zeros((points.size(0), 3), dtype=torch.int, device=points.device)
+            coors = self.dynamic_voxelize_forward(points, self.voxel_size, self.point_cloud_range, NDim=3)
             return coors
         else:
-            voxels = torch.zeros((max_voxels, self.max_num_points, points.size(1)), device=points.device)
-            coors = torch.zeros((max_voxels, 3), dtype=torch.int, device=points.device)
-            num_points_per_voxel = torch.zeros((max_voxels,), dtype=torch.int, device=points.device)
-            voxel_num = torch.zeros((), dtype=torch.long, device=points.device)
+            #voxels = torch.zeros((max_voxels, self.max_num_points, points.size(1)), device=points.device)
+            #coors = torch.zeros((max_voxels, 3), dtype=torch.int, device=points.device)
+            #num_points_per_voxel = torch.zeros((max_voxels,), dtype=torch.int, device=points.device)
+            #voxel_num = torch.zeros((), dtype=torch.long, device=points.device)
 
-            self.hard_voxelize_forward(
+            # hard_voxelize_forward(self, points, voxel_size, coors_range, max_points, max_voxels, NDim=3, deterministic=True)
+            voxels, coors, num_points_per_voxel, voxel_num = self.hard_voxelize_forward(
                 points,
                 self.voxel_size,
                 self.point_cloud_range,
-                voxels,
-                coors,
-                num_points_per_voxel,
-                voxel_num,
+                #voxels,
+                #coors,
+                #num_points_per_voxel,
+                #voxel_num,
                 max_points=self.max_num_points,
                 max_voxels=max_voxels,
                 NDim=3,
