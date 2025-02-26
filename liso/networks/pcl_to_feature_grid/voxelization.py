@@ -144,7 +144,7 @@ class Voxelization(nn.Module):
         unique_coords, inverse = torch.unique(voxel_coords, return_inverse=True, dim=0)
         
         # If too many voxels, keep only the first max_voxels.
-        if unique_coords.shape[0] > max_voxels:
+        if unique_coords.shape[0].item() > max_voxels:
             unique_coords = unique_coords[:max_voxels]
         
         voxel_num = unique_coords.shape[0]

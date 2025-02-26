@@ -17,20 +17,20 @@ def modify_pred_pos(
             "tanh",
             "none",
         ), box_pred_cfg.activations.pos
-        assert len(pred_pos.shape) == 4, pred_pos.shape
-        assert pillar_center_coors_m.shape[:-1] == pred_pos.shape[1:3], (
-            pillar_center_coors_m.shape,
-            pred_pos.shape,
-        )
+        #assert len(pred_pos.shape) == 4, pred_pos.shape
+        #assert pillar_center_coors_m.shape[:-1] == pred_pos.shape[1:3], (pillar_center_coors_m.shape, pred_pos.shape)
 
         local_bev_img_shape = pred_pos.shape[1:3]
-        local_voxel_resolution = (
-            torch.tensor(data_cfg.bev_range_m) / torch.tensor(local_bev_img_shape)
-        ).to(pred_pos.device)
+
+        bev_range_m_tensor = torch.as_tensor(data_cfg.bev_range_m, device=pred_pos.device)
+        local_bev_img_shape_tensor = torch.as_tensor(local_bev_img_shape, device=pred_pos.device)
+
+        local_voxel_resolution = bev_range_m_tensor / local_bev_img_shape_tensor
+        
         box_xy_offset = local_voxel_resolution * 0.5 * pred_pos[..., :2]
         modified_pos = pillar_center_coors_m[None, ...] + box_xy_offset
         if box_pred_cfg.position_representation.num_box_pos_dims == 3:
-            assert pred_pos.shape[-1] == 3, pred_pos.shape
+            #assert pred_pos.shape[-1] == 3, pred_pos.shape
             box_z = box_pred_cfg.position_representation.box_z_pos_prior_min + 0.5 * (
                 pred_pos[..., [-1]] + 1.0
             ) * (

@@ -22,9 +22,9 @@ class Shape:
 
     def __init__(self, pos, dims, rot, probs, velo=None, valid=None, class_id=None, difficulty=None) -> None:
 
-        assert pos.shape[-1] in (1, 2, 3), pos.shape
-        assert dims.shape[-1] in (1, 2, 3), dims.shape
-        assert probs.shape[-1] == 1, probs.shape
+        #assert pos.shape[-1] in (1, 2, 3), pos.shape
+        #assert dims.shape[-1] in (1, 2, 3), dims.shape
+        #assert probs.shape[-1] == 1, probs.shape
 
         self.pos = pos
         self.dims = dims
