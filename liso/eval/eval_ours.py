@@ -814,7 +814,8 @@ def main():
     print("INPUT", input_pcds)
     save_onnx = maybe_slow_log_dir.joinpath("checkpoints", "test.onnx")
     print("ONNX save path", save_onnx)
-    torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11)
+    with torch.no_grad():
+        torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11)
 
 if __name__ == "__main__":
     main()
