@@ -814,7 +814,9 @@ def main():
     print("INPUT", input_pcds)
     save_onnx = "checkpoints/test.onnx"
     print("ONNX save path", save_onnx)
-    torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11)
+    import cProfile
+    cProfile.run('torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11, verbose=True)')
+    #torch.onnx.export(box_predictor, (None, input_pcds), save_onnx, opset_version=11, verbose=True)
 
 if __name__ == "__main__":
     main()
