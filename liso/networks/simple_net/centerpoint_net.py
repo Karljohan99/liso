@@ -105,9 +105,13 @@ class CenterPointStyleNet(torch.nn.Module):
             assert (
                 len(img_t0.shape) == 4
             ), f"need batched gray image but got shape {img_t0.shape}"
+
+        print("PFN")
         bev_enc, bev_occupancy_map = self.pfn(pcl_t0=pcls, img_t0=img_t0)
         aux_outputs = {"bev_net_input_dbg": bev_occupancy_map}
+        print("RPN")
         rpn = self.rpn(bev_enc)
+        print("CENTER HEAD")
         pred_dict = self.center_head(rpn)
         channels_last_dict = {k: v.permute(0, 2, 3, 1) for k, v in pred_dict.items()}
         return channels_last_dict, aux_outputs

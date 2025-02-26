@@ -88,15 +88,19 @@ class PointsPillarFeatureNetWrapper(torch.nn.Module):
         # copied from TransFusion/mmdet3d/models/detectors/transfusion.py
         """Extract features of points."""
         assert isinstance(pts, (list, tuple)), type(pts)
+        print("VOXELIZE")
         voxels, num_points, coors = self.voxelize(pts)
+        print("VOXEL ENCODER")
         voxel_features = self.pts_voxel_encoder(
             voxels,
             num_points,
             coors,
         )
         batch_size = len(pts)
+        print("MIDDLE ENCODER")
         x = self.pts_middle_encoder(voxel_features, coors, batch_size)
 
+        print("DEBUG")
         occupancy_grid = self.debug_occupancy_pts_middle_encoder(
             torch.ones_like(voxel_features[:, [0]]), coors, batch_size
         )

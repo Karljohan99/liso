@@ -54,6 +54,7 @@ class BoxLearner(torch.nn.Module):
                 requires_grad=False)
 
     def forward(self, img_t0, pcls_t0, gt_boxes=None, centermaps_gt=None, train=True):# -> Tuple[Shape, Dict]:
+        print("START")
         if self.cfg.network.name == "echo_gt":
             warn_once(getLogger(), "WARNING: NETWORK ECHOES GROUNDTRUTH")
             assert gt_boxes is not None
@@ -65,19 +66,27 @@ class BoxLearner(torch.nn.Module):
 
         if isinstance(self.model, (PointRCNNWrapper, PointPillarsWrapper)):
             if train:
+                print("PRED1")
                 loss_dict = self.model(pcls=pcls_t0, gt_boxes=gt_boxes, train=train)
                 return loss_dict
             else:
                 pred_boxes = self.model(pcls=pcls_t0, gt_boxes=gt_boxes, train=False)
+                print("PRED2")
                 return (pred_boxes, None, None, None)
         else:
+            print("PRED3")
             raw_box_vars, aux_outputs = self.model(img_t0, pcls_t0)
 
+        print("OUTPUT_MOD")
         decoded_box_maps, activated_box_maps = self.apply_all_output_modifications(raw_box_vars=raw_box_vars, gt_boxes=gt_boxes, centermaps_gt=centermaps_gt)
 
+        print("FLATTEN")
         flat_boxes = maybe_flatten_anchors_except_for({k: v.clone() for k, v in decoded_box_maps.items()}, ())
 
+        print("SHAPE")
         shape = Shape(**flat_boxes)
+
+        print("END")
 
         #return (Shape(**flat_boxes), decoded_box_maps, activated_box_maps, aux_outputs)
         return (shape.pos, shape.dims, shape.rot, shape.probs, decoded_box_maps, activated_box_maps, aux_outputs)
